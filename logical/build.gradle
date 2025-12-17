@@ -19,41 +19,34 @@ repositories {
 }
 
 dependencies {
-    implementation 'org.springframework.boot:spring-boot-starter-web'
     implementation 'org.springframework.boot:spring-boot-starter'
+    implementation 'org.springframework.boot:spring-boot-starter-web'
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
-    implementation 'org.springframework.boot:spring-boot-starter-jdbc'
-    runtimeOnly 'org.postgresql:postgresql'
-
-    testImplementation 'org.springframework.boot:spring-boot-starter-test'
-
-    compileOnly 'org.projectlombok:lombok'
-    annotationProcessor 'org.projectlombok:lombok'
     implementation 'org.springframework.boot:spring-boot-starter-validation'
 
-    // Явно добавляем JUnit 5
-    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.10.1'
-    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.10.1'
+    // JDBC не нужен отдельно, он уже в data-jpa
+    // implementation 'org.springframework.boot:spring-boot-starter-jdbc'
 
-    // H2 для тестов
+    // Database
+    runtimeOnly 'org.postgresql:postgresql'
+
+    // Lombok
+    compileOnly 'org.projectlombok:lombok'
+    annotationProcessor 'org.projectlombok:lombok'
+
+    // Testing
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testRuntimeOnly 'com.h2database:h2'
 }
 
 test {
     useJUnitPlatform()
-    enabled = false  // ← ЭТА СТРОКА отключает тесты
+    enabled = false
 }
 
 tasks.named('test') {
     useJUnitPlatform()
 }
-// Настройка кодировки для запуска
-tasks.withType(JavaExec) {
-    systemProperty "file.encoding", "UTF-8"
-    systemProperty "console.encoding", "UTF-8"
-}
-
-bootRun {
-    systemProperty "file.encoding", "UTF-8"
-    systemProperty "console.encoding", "UTF-8"
+bootJar {
+    mainClass = 'com.example.logical.LogicalApplication'
 }
