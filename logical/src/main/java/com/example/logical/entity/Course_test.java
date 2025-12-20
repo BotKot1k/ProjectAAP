@@ -11,7 +11,8 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 public class Course_test {
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "course_test_seq")
+    @SequenceGenerator(name = "course_test_seq", sequenceName = "course_test_seq", allocationSize = 1)
     private Long id;
 
     @ManyToOne

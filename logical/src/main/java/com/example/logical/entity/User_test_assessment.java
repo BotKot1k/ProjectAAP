@@ -10,7 +10,8 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 public class User_test_assessment {
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "user_test_assessment_seq")
+    @SequenceGenerator(name = "user_test_assessment_seq", sequenceName = "user_test_assessment_seq", allocationSize = 1)
     private Long id;
 
     @ManyToOne
@@ -27,7 +28,7 @@ public class User_test_assessment {
 
     private int test_assessment;
 
-    private int[] user_answers;
+    private Integer[] user_answers;
 
     private int try_test;
 }

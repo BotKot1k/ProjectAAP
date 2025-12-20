@@ -15,7 +15,7 @@ import java.util.Optional;
 public interface UserRepository extends JpaRepository<Users, Long> {
 
     @Query(value = "SELECT * FROM users WHERE user_id = ?1", nativeQuery = true)
-    Optional<Users> findByUserId(Long user_id);
+    Optional<Users> findByUserId(@Param("user_id") Long user_id);
 
     @Query(value = "SELECT * FROM users", nativeQuery = true)
     List<Users> findAllUsers();

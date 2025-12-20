@@ -12,7 +12,8 @@ import java.util.List;
 @NoArgsConstructor
 public class Test {
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "test_seq")
+    @SequenceGenerator(name = "test_seq", sequenceName = "test_seq", allocationSize = 1)
     private int test_id;
 
     private String test_name;
