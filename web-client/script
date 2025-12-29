@@ -1,0 +1,503 @@
+// Конфигурация
+const API_BASE = 'http://localhost:3000/api';
+const SESSION_KEY = 'testing_system_session';
+
+// Состояние приложения
+let state = {
+    user: null,
+    session: null,
+    currentCourse: null,
+    currentTest: null,
+    answers: {},
+    questionIndex: 0
+};
+
+// Инициализация
+document.addEventListener('DOMContentLoaded', init);
+
+async function init() {
+    // Проверяем сессию
+    const session = localStorage.getItem(SESSION_KEY);
+    if (session) {
+        try {
+            state.session = JSON.parse(session);
+            if (await checkSession()) {
+                showStudentPanel();
+                loadUserData();
+                return;
+            }
+        } catch (e) {
+            console.error('Ошибка загрузки сессии:', e);
+        }
+    }
+    
+    showLoginPage();
+    setupEventListeners();
+}
+
+// Проверка сессии на сервере
+async function checkSession() {
+    if (!state.session?.token) return false;
+    
+    try {
+        // В реальном приложении здесь будет запрос к серверу
+        // Например: fetch(`${API_BASE}/auth/check`, { headers: { 'Authorization': state.session.token } })
+        return true; // Заглушка
+    } catch (error) {
+        console.error('Ошибка проверки сессии:', error);
+        return false;
+    }
+}
+
+// Показать страницу входа
+function showLoginPage() {
+    document.getElementById('loginPage').classList.remove('hidden');
+    document.getElementById('studentPanel').classList.add('hidden');
+}
+
+// Показать панель студента
+function showStudentPanel() {
+    document.getElementById('loginPage').classList.add('hidden');
+    document.getElementById('studentPanel').classList.remove('hidden');
+    showPage('courses');
+}
+
+// Навигация по страницам
+function showPage(pageName) {
+    // Скрыть все страницы
+    document.querySelectorAll('.page').forEach(p => {
+        p.classList.remove('active');
+    });
+    
+    // Показать нужную страницу
+    const page = document.getElementById(pageName + 'Page');
+    if (page) {
+        page.classList.add('active');
+    }
+    
+    // Обновить навигацию
+    document.querySelectorAll('.nav-item').forEach(item => {
+        item.classList.remove('active');
+        if (item.dataset.page === pageName) {
+            item.classList.add('active');
+        }
+    });
+    
+    // Загрузить данные страницы
+    switch(pageName) {
+        case 'courses': loadCourses(); break;
+        case 'tests': loadTests(); break;
+        case 'results': loadResults(); break;
+        case 'profile': loadProfile(); break;
+    }
+}
+
+// Загрузка курсов
+async function loadCourses() {
+    const container = document.getElementById('coursesList');
+    container.innerHTML = '<div class="loading">Загрузка курсов...</div>';
+    
+    // Имитация загрузки данных
+    setTimeout(() => {
+        const courses = [
+            { id: 1, title: 'Основы программирования', description: 'Введение в Python', enrolled: true, teacher: 'Иванов И.И.', testsCount: 5 },
+            { id: 2, title: 'Математический анализ', description: 'Дифференциальное исчисление', enrolled: true, teacher: 'Петрова А.С.', testsCount: 3 },
+            { id: 3, title: 'Базы данных', description: 'SQL и проектирование', enrolled: false, teacher: 'Сидоров В.В.', testsCount: 4 }
+        ];
+        
+        container.innerHTML = courses.map(course => `
+            <div class="course-card">
+                <h3>${course.title}</h3>
+                <p>${course.description}</p>
+                <p><strong>Преподаватель:</strong> ${course.teacher}</p>
+                <p><strong>Тестов:</strong> ${course.testsCount}</p>
+                <button onclick="viewCourse(${course.id})" class="btn btn-primary">
+                    ${course.enrolled ? 'Перейти к тестам' : 'Записаться на курс'}
+                </button>
+            </div>
+        `).join('');
+    }, 500);
+}
+
+// Просмотр курса
+function viewCourse(courseId) {
+    state.currentCourse = courseId;
+    loadTests();
+    showPage('tests');
+}
+
+// Загрузка тестов
+async function loadTests() {
+    const container = document.getElementById('testsList');
+    container.innerHTML = '<div class="loading">Загрузка тестов...</div>';
+    
+    setTimeout(() => {
+        const tests = [
+            { id: 1, title: 'Тест 1: Основные понятия', status: 'active', passed: false, questions: 5, time: 30 },
+            { id: 2, title: 'Тест 2: Условные операторы', status: 'active', passed: true, questions: 8, time: 45 },
+            { id: 3, title: 'Тест 3: Циклы', status: 'inactive', passed: false, questions: 10, time: 60 }
+        ];
+        
+        container.innerHTML = tests.map(test => `
+            <div class="test-card">
+                <h3>${test.title}</h3>
+                <p><strong>Статус:</strong> ${test.status === 'active' ? 'Активен' : 'Неактивен'}</p>
+                <p><strong>Вопросов:</strong> ${test.questions}</p>
+                <p><strong>Время:</strong> ${test.time} минут</p>
+                <button onclick="startTest(${test.id})" class="btn btn-primary" 
+                        ${test.status !== 'active' || test.passed ? 'disabled' : ''}>
+                    ${test.passed ? 'Пройден' : test.status === 'active' ? 'Начать тест' : 'Недоступен'}
+                </button>
+            </div>
+        `).join('');
+    }, 500);
+}
+
+// Начать тест
+function startTest(testId) {
+    state.currentTest = testId;
+    state.answers = {};
+    state.questionIndex = 0;
+    
+    loadQuestion();
+    showPage('test');
+}
+
+// Загрузка вопроса
+async function loadQuestion() {
+    const container = document.getElementById('questionContainer');
+    const questions = [
+        { 
+            id: 1, 
+            text: 'Что такое переменная в программировании?', 
+            options: [
+                'Имя для области памяти, где хранятся данные',
+                'Тип данных',
+                'Функция',
+                'Оператор'
+            ],
+            correctAnswer: 0
+        },
+        { 
+            id: 2, 
+            text: 'Какой оператор используется для присваивания значения в Python?', 
+            options: [
+                '=',
+                '==',
+                ':=',
+                '=>'
+            ],
+            correctAnswer: 0
+        },
+        { 
+            id: 3, 
+            text: 'Что выведет print(2 + 2 * 2)?', 
+            options: [
+                '6',
+                '8',
+                '4',
+                'Ошибка'
+            ],
+            correctAnswer: 0
+        }
+    ];
+    
+    if (state.questionIndex < questions.length) {
+        const q = questions[state.questionIndex];
+        
+        container.innerHTML = `
+            <div class="question">
+                <h3>Вопрос ${state.questionIndex + 1} из ${questions.length}</h3>
+                <p>${q.text}</p>
+                <div class="options">
+                    ${q.options.map((opt, i) => `
+                        <div class="option" onclick="selectAnswer(${q.id}, ${i})">
+                            ${String.fromCharCode(65 + i)}) ${opt}
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+        
+        // Обновить заголовок теста
+        document.getElementById('testTitle').textContent = `Тестирование - Вопрос ${state.questionIndex + 1}`;
+        
+        // Обновить кнопки навигации
+        document.getElementById('nextBtn').classList.remove('hidden');
+        document.getElementById('submitBtn').classList.add('hidden');
+        
+        // Показать кнопку завершения на последнем вопросе
+        if (state.questionIndex === questions.length - 1) {
+            document.getElementById('nextBtn').classList.add('hidden');
+            document.getElementById('submitBtn').classList.remove('hidden');
+        }
+        
+        // Восстановить выбранный ответ, если есть
+        if (state.answers[q.id] !== undefined) {
+            selectAnswer(q.id, state.answers[q.id]);
+        }
+    }
+}
+
+// Выбор ответа
+function selectAnswer(questionId, answerIndex) {
+    state.answers[questionId] = answerIndex;
+    
+    // Подсветка выбранного варианта
+    const options = document.querySelectorAll('.option');
+    options.forEach((opt, i) => {
+        opt.classList.remove('selected');
+    });
+    
+    if (options[answerIndex]) {
+        options[answerIndex].classList.add('selected');
+    }
+}
+
+// Следующий вопрос
+function nextQuestion() {
+    state.questionIndex++;
+    loadQuestion();
+}
+
+// Завершение теста
+function submitTest() {
+    // Подсчет правильных ответов
+    const questions = [
+        { id: 1, correctAnswer: 0 },
+        { id: 2, correctAnswer: 0 },
+        { id: 3, correctAnswer: 0 }
+    ];
+    
+    let correct = 0;
+    questions.forEach(q => {
+        if (state.answers[q.id] === q.correctAnswer) {
+            correct++;
+        }
+    });
+    
+    const score = Math.round((correct / questions.length) * 100);
+    
+    // Показать результат
+    document.getElementById('resultContent').innerHTML = `
+        <h3>Результат теста</h3>
+        <p><strong>Правильных ответов:</strong> ${correct} из ${questions.length}</p>
+        <p><strong>Процент выполнения:</strong> ${score}%</p>
+        <p><strong>Оценка:</strong> ${getGrade(score)}</p>
+        <p><strong>Статус:</strong> ${score >= 60 ? 'Зачет' : 'Незачет'}</p>
+    `;
+    
+    showPage('result');
+}
+
+// Получение оценки
+function getGrade(score) {
+    if (score >= 90) return '5 (Отлично)';
+    if (score >= 75) return '4 (Хорошо)';
+    if (score >= 60) return '3 (Удовлетворительно)';
+    return '2 (Неудовлетворительно)';
+}
+
+// Загрузка результатов
+async function loadResults() {
+    const container = document.getElementById('resultsList');
+    container.innerHTML = '<div class="loading">Загрузка результатов...</div>';
+    
+    setTimeout(() => {
+        const results = [
+            { test: 'Тест 1: Основные понятия', course: 'Программирование', score: '5/5 (100%)', date: '2023-10-01', time: '15 мин' },
+            { test: 'Тест 2: Условные операторы', course: 'Программирование', score: '4/5 (80%)', date: '2023-10-05', time: '20 мин' },
+            { test: 'Производные', course: 'Математика', score: '3/5 (60%)', date: '2023-10-10', time: '25 мин' }
+        ];
+        
+        container.innerHTML = results.map(r => `
+            <div class="test-card">
+                <h3>${r.test}</h3>
+                <p><strong>Курс:</strong> ${r.course}</p>
+                <p><strong>Оценка:</strong> ${r.score}</p>
+                <p><strong>Дата:</strong> ${r.date}</p>
+                <p><strong>Время:</strong> ${r.time}</p>
+            </div>
+        `).join('');
+    }, 500);
+}
+
+// Загрузка профиля
+async function loadProfile() {
+    const container = document.getElementById('profileInfo');
+    
+    container.innerHTML = `
+        <div class="course-card">
+            <h3>Информация о пользователе</h3>
+            <p><strong>ФИО:</strong> Иван Петров</p>
+            <p><strong>Группа:</strong> 1 курс, группа 101</p>
+            <p><strong>Email:</strong> student@example.com</p>
+            <p><strong>Роль:</strong> Студент</p>
+            <p><strong>Дата регистрации:</strong> 2023-09-01</p>
+        </div>
+        
+        <div class="course-card">
+            <h3>Статистика</h3>
+            <p><strong>Курсов записано:</strong> 2</p>
+            <p><strong>Тестов пройдено:</strong> 3</p>
+            <p><strong>Средний балл:</strong> 4.0</p>
+        </div>
+    `;
+}
+
+// Обработчики событий
+function setupEventListeners() {
+    // Кнопки авторизации
+    document.querySelectorAll('.auth-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const provider = btn.dataset.provider;
+            handleAuth(provider);
+        });
+    });
+    
+    // Навигация
+    document.querySelectorAll('.nav-item').forEach(item => {
+        item.addEventListener('click', () => {
+            if (item.id === 'logoutBtn') {
+                logout();
+            } else if (item.dataset.page) {
+                showPage(item.dataset.page);
+            }
+        });
+    });
+    
+    // Модальное окно кода
+    document.getElementById('submitCodeBtn').addEventListener('click', submitCode);
+    document.getElementById('cancelCodeBtn').addEventListener('click', hideCodeModal);
+    
+    // Навигация теста
+    document.getElementById('nextBtn').addEventListener('click', nextQuestion);
+    document.getElementById('submitBtn').addEventListener('click', submitTest);
+    
+    // Назад к тестам
+    document.getElementById('backBtn').addEventListener('click', () => {
+        showPage('tests');
+    });
+}
+
+// Обработка авторизации
+async function handleAuth(provider) {
+    if (provider === 'code') {
+        showCodeModal();
+    } else {
+        // Имитация OAuth авторизации
+        showAuthPending(provider);
+        
+        setTimeout(() => {
+            completeAuth(provider);
+        }, 1500);
+    }
+}
+
+// Показать модальное окно кода
+function showCodeModal() {
+    document.getElementById('codeModal').classList.remove('hidden');
+    document.getElementById('codeInput').value = '';
+    document.getElementById('codeInput').focus();
+}
+
+// Скрыть модальное окно
+function hideCodeModal() {
+    document.getElementById('codeModal').classList.add('hidden');
+}
+
+// Отправить код
+function submitCode() {
+    const code = document.getElementById('codeInput').value.trim();
+    
+    if (code.length !== 6 || !/^\d+$/.test(code)) {
+        alert('Введите 6-значный цифровой код');
+        return;
+    }
+    
+    // Имитация проверки кода
+    showAuthPending('code');
+    
+    setTimeout(() => {
+        completeAuth('code');
+        hideCodeModal();
+    }, 1500);
+}
+
+// Показать ожидание авторизации
+function showAuthPending(provider) {
+    const btn = document.querySelector(`.auth-btn[data-provider="${provider}"]`);
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '<span>Ожидание подтверждения...</span>';
+    btn.disabled = true;
+    
+    setTimeout(() => {
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+    }, 1500);
+}
+
+// Завершить авторизацию
+function completeAuth(provider) {
+    // Сохраняем пользователя и сессию
+    state.user = {
+        id: 1,
+        name: 'Иван Петров',
+        email: 'student@example.com',
+        role: 'student',
+        group: '1 курс'
+    };
+    
+    state.session = {
+        token: 'demo_token_' + Date.now(),
+        provider: provider,
+        timestamp: Date.now()
+    };
+    
+    localStorage.setItem(SESSION_KEY, JSON.stringify(state.session));
+    showStudentPanel();
+    
+    // Показать уведомление
+    alert(`Авторизация через ${getProviderName(provider)} успешна!`);
+}
+
+// Получить название провайдера
+function getProviderName(provider) {
+    const names = {
+        'github': 'GitHub',
+        'yandex': 'Яндекс',
+        'code': 'Код'
+    };
+    return names[provider] || provider;
+}
+
+// Загрузка данных пользователя
+async function loadUserData() {
+    // В реальном приложении здесь запрос к API
+    if (!state.user) {
+        state.user = {
+            id: 1,
+            name: 'Иван Петров',
+            email: 'student@example.com',
+            role: 'student',
+            group: '1 курс'
+        };
+    }
+}
+
+// Выход из системы
+function logout() {
+    if (confirm('Вы уверены, что хотите выйти?')) {
+        state.user = null;
+        state.session = null;
+        localStorage.removeItem(SESSION_KEY);
+        showLoginPage();
+    }
+}
+
+// Экспорт функций для использования в HTML
+window.viewCourse = viewCourse;
+window.startTest = startTest;
+window.selectAnswer = selectAnswer;
+window.nextQuestion = nextQuestion;
+window.submitTest = submitTest;
