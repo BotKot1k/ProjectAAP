@@ -1,5 +1,6 @@
 package com.example.logical.entity;
 
+import com.example.logical.dto.UsersDTO;
 import jakarta.persistence.*;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -30,5 +31,11 @@ public class Users {
     @OneToMany(mappedBy = "user", cascade = CascadeType.REMOVE)
     private List<Student> students;
 
-
+    public Users(UsersDTO userDto){
+        user_id =  userDto.getId();
+        user_firstname =userDto.getUser_firstName();
+        user_lastname =userDto.getUser_lastName();
+        user_patronymic =userDto.getUser_patronymic();
+        user_rank =userDto.getUser_rank();
+    }
 }

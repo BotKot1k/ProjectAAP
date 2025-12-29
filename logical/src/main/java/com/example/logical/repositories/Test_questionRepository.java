@@ -13,15 +13,16 @@ import java.util.List;
 
 @Repository
 public interface Test_questionRepository extends JpaRepository<Test_question, Long> {
-    @Query(value = "SELECT tq.question_id, q.question_name FROM test_question tq JOIN question q ON tq.question_id = q.question_id", nativeQuery = true)
-    List<Object[]> findAllQuestions();
+    @Query(value = "SELECT tq.question_id, q.question_name, q.answer_true, q.question_answer FROM test_question tq JOIN question q ON tq.question_id = q.question_id WHERE tq.test_id = :id", nativeQuery = true)
+    List<Object[]> findAllQuestions(@Param("id") Long test_id);
 
     @Modifying
     @Transactional
-    @Query(value = "DELETE FROM test_question WHERE question_id = :id AND test_id = :test_id", nativeQuery = true)
+    @Query(value = "DELETE FROM test_question WHERE question_id = :user_id AND test_id = :test_id", nativeQuery = true)
     void deleteQuestion(@Param("id") Long id, @Param("test_id") Long test_id);
 
+    boolean existsByTestId(long test_id);
     /*@Modifying
     @Transactional
-    @Query(value = "INSERT INTO test_question ")*/ // Добавить счётчик max id
+    @Query(value = "INSERT INTO test_question ")*/ // Добавить счётчик max user_id
 }

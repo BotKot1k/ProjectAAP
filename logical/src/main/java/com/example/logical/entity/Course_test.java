@@ -1,5 +1,6 @@
 package com.example.logical.entity;
 
+import com.example.logical.dto.Course_testDTO;
 import jakarta.persistence.*;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -24,4 +25,8 @@ public class Course_test {
     private Test test;
 
     private boolean course_test_active;
+
+    public Course_test(Course_testDTO course_testDTO){
+        course = course_testDTO.get
+    }
 }

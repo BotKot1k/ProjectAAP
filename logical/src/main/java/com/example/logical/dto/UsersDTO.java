@@ -3,7 +3,6 @@ package com.example.logical.dto;
 import com.example.logical.entity.Users;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import org.apache.catalina.User;
 
 @Data
 @NoArgsConstructor

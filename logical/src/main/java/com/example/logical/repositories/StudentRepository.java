@@ -13,14 +13,19 @@ import java.util.List;
 public interface StudentRepository extends JpaRepository<Student, Long> {
     @Modifying
     @Transactional
-    @Query(value = "INSERT INTO student (id, user_id, course_id) VALUES (:id, :user_id, :course_id)", nativeQuery = true)
-    void createAnyStudent(@Param("id") Long id, @Param("user_id") Long user_id, @Param("course_id") Long course_id);
+    @Query(value = "INSERT INTO student (user_id, course_id) VALUES (:user_id, :course_id)", nativeQuery = true)
+    void createAnyStudent(@Param("id") Long user_id, @Param("course_id") Long course_id);
 
     @Query(value = "SELECT s.user_id, u.user_firstname, u.user_lastname FROM student s JOIN users u ON s.user_id = u.user_id", nativeQuery = true)
     List<Object[]> findAllStudents();
 
+    @Query(value = "SELECT s.course_id, c.course_name FROM student s JOIN course c ON s.course_id = c.course_id WHERE user_id = :user_id")
+    List<Object[]> findAllUserCourses(@Param("id") Long user_id);
+
     @Modifying
     @Transactional
-    @Query(value = "DELETE FROM student WHERE id = :id", nativeQuery = true)
+    @Query(value = "DELETE FROM student WHERE user_id = :user_id", nativeQuery = true)
     void deleteStudent(@Param("id") Long id);
+
+    boolean existsByUser_id(Long user_id);
 }

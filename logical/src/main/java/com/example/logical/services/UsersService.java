@@ -9,8 +9,7 @@ import com.example.logical.repositories.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import java.util.List;
-import java.util.Objects;
+import java.util.*;
 
 @Service
 public class UsersService {
@@ -20,7 +19,7 @@ public class UsersService {
 
     public void createUser(UsersDTO userDTO) {
         if(userRepository.existsById(userDTO.getId())) {
-            throw new ConflictException("users","user_id",userDTO.getId());
+            throw new ConflictException("users","id",userDTO.getId());
         }
 
         if(userDTO.getUser_firstName().isEmpty() || userDTO.getUser_lastName().isEmpty() || userDTO.getId() == null) {
@@ -62,19 +61,27 @@ public class UsersService {
         if(!userRepository.existsById(userDTO.getId())) {
             throw new NotFoundException("users",userDTO.getId());
         }
+
         Users user = userRepository.findByUserId(userDTO.getId()).get();
 
-        if(!Objects.equals(user.getUser_firstname(), userDTO.getUser_firstName())) {
+        if(userDTO.getUser_firstName() != null) {
             user.setUser_firstname(userDTO.getUser_firstName());
         }
-        if(!Objects.equals(user.getUser_lastname(), userDTO.getUser_lastName())) {
+        if(userDTO.getUser_lastName() != null) {
             user.setUser_lastname(userDTO.getUser_lastName());
         }
-        if(!Objects.equals(user.getUser_patronymic(), userDTO.getUser_patronymic())) {
+        if(userDTO.getUser_patronymic() != null) {
             user.setUser_patronymic(userDTO.getUser_patronymic());
         }
-        if(!Objects.equals(user.getUser_rank(), userDTO.getUser_rank())) {
-            user.setUser_rank(userDTO.getUser_rank()); // Очень грубая хрень, в идеале добавлять в массив User_rank новые элементы userDTO
+        if(userDTO.getUser_rank() != null) {
+            String[] current_users_rank = user.getUser_rank();
+            String[] userDTO_rank = userDTO.getUser_rank();
+
+            Set<String> uniqueSet = new HashSet<>(Arrays.asList(current_users_rank));
+            uniqueSet.addAll(Arrays.asList(userDTO_rank));
+
+            user.setUser_rank(uniqueSet.toArray(new String[0]));
         }
+
     }
 }

@@ -1,5 +1,6 @@
 package com.example.logical.entity;
 
+import com.example.logical.dto.CourseDTO;
 import jakarta.persistence.*;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -32,4 +33,11 @@ public class Course {
 
     @OneToMany(mappedBy = "course")
     private List<User_test_assessment> user_test_assessments;
+
+    public Course(CourseDTO courseDTO) {
+        this.course_id = courseDTO.getCourse_id();
+        this.course_name = courseDTO.getCourse_name();
+        this.description = courseDTO.getDescription();
+        this.teacher = new Users(courseDTO.getTeacher_id());
+    }
 }

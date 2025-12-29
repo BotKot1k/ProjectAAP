@@ -20,18 +20,19 @@ public interface CourseRepository extends JpaRepository<Course, Long> {
     @Query(value = "SELECT * FROM course", nativeQuery = true)
     List<Course> findAllCourses();
 
+
     @Modifying
     @Transactional
-    @Query(value = "UPDATE course SET description = :value WHERE course_id = :id", nativeQuery = true)
+    @Query(value = "UPDATE course SET description = :value WHERE course_id = :user_id", nativeQuery = true)
     void updateDescription(@Param("id") Long id, @Param("value") String value);
 
     @Modifying
     @Transactional
-    @Query(value = "DELETE FROM course WHERE course_id = :id", nativeQuery = true)
+    @Query(value = "DELETE FROM course WHERE course_id = :user_id", nativeQuery = true)
     void deleteCourse(@Param("id") Long id);
 
     @Modifying
     @Transactional
     @Query(value = "INSERT INTO course (teacher_id, course_id, description, course_name) VALUES (:teacher_id, :course_id, :description, :course_name", nativeQuery = true)
-    void deleteUser(@Param("teacher_id") Long teacher_id, @Param("course_id") Long id, @Param("description") String description, @Param("course_name") String course_name);
+    void createCourse(@Param("teacher_id") Long teacher_id, @Param("course_id") Long id, @Param("description") String description, @Param("course_name") String course_name);
 }
