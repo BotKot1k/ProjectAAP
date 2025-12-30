@@ -14,7 +14,7 @@ public class UsersDTO {
     private String[] user_rank;
 
     public UsersDTO(Users user){
-        id = user.getUser_id();
+        id = user.getUserId();
         this.user_firstName = user.getUser_firstname();
         this.user_lastName = user.getUser_lastname();
         this.user_patronymic = user.getUser_patronymic();

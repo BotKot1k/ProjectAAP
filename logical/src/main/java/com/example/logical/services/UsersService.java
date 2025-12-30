@@ -27,7 +27,7 @@ public class UsersService {
         }
         Users user = new Users();
 
-        user.setUser_id(userDTO.getId());
+        user.setUserId(userDTO.getId());
         user.setUser_firstname(userDTO.getUser_firstName());
         user.setUser_lastname(userDTO.getUser_lastName());
         user.setUser_patronymic(userDTO.getUser_patronymic());

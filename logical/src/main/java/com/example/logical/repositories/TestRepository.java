@@ -15,5 +15,5 @@ public interface TestRepository extends JpaRepository<Test, Long> {
     @Query(value = "INSERT INTO test (test_name) VALUES (:test_name)", nativeQuery = true)
     void createTest(@Param("test_name") String test_name);
 
-
+    boolean existsByTest_TestId(Long testId);
 }

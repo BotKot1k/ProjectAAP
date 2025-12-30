@@ -15,7 +15,7 @@ public class Users {
     @Id
     @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "users_seq")
     @SequenceGenerator(name = "users_seq", sequenceName = "users_seq", allocationSize = 1)
-    private Long user_id;
+    private Long userId;
 
     private String user_firstname;
 
@@ -32,7 +32,7 @@ public class Users {
     private List<Student> students;
 
     public Users(UsersDTO userDto){
-        user_id =  userDto.getId();
+        userId =  userDto.getId();
         user_firstname =userDto.getUser_firstName();
         user_lastname =userDto.getUser_lastName();
         user_patronymic =userDto.getUser_patronymic();

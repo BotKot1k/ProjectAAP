@@ -14,12 +14,12 @@ public class Test_question {
     @SequenceGenerator(name = "test_question_seq", sequenceName = "test_question_seq", allocationSize = 1)
     private Long id;
 
-    @ManyToOne
+    @ManyToOne(cascade = CascadeType.ALL)
     @JoinColumn(name = "test_id")
     private Test test;
 
-    @ManyToOne
-    @JoinColumn(name = "question_id")
+    @ManyToOne(cascade = CascadeType.ALL)
+    @JoinColumn(name = "questionId")
     private Question question;
 
     private int question_number;

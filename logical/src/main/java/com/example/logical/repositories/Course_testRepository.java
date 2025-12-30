@@ -25,4 +25,6 @@ public interface Course_testRepository extends JpaRepository<Course, Long> {
     @Transactional
     @Query(value = "INSERT INTO course_test (course_id, test_id, course_test_active) VALUES (:course_id, :test_id, TRUE", nativeQuery = true)
     void createCourseTest(@Param("course_id") Long course_id, @Param("test_id") Long test_id);
+
+    boolean existsByCourse_CourseId(Long course_id);
 }

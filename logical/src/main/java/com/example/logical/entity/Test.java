@@ -1,5 +1,6 @@
 package com.example.logical.entity;
 
+import com.example.logical.dto.TestDTO;
 import jakarta.persistence.*;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -14,7 +15,8 @@ public class Test {
     @Id
     @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "test_seq")
     @SequenceGenerator(name = "test_seq", sequenceName = "test_seq", allocationSize = 1)
-    private Long test_id;
+    @Column(name = "test_id")
+    private Long testId;
 
     private String test_name;
 
@@ -26,4 +28,9 @@ public class Test {
 
     @OneToMany(mappedBy = "test")
     private List<User_test_assessment> user_test_assessments;
+
+    public Test(TestDTO testDTO) {
+        this.testId = testDTO.getTest_id();
+        this.test_name = testDTO.getTest_name();
+    }
 }

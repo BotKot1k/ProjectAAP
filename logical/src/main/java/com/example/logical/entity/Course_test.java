@@ -26,7 +26,4 @@ public class Course_test {
 
     private boolean course_test_active;
 
-    public Course_test(Course_testDTO course_testDTO){
-        course = course_testDTO.get
-    }
 }

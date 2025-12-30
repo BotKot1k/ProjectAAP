@@ -27,6 +27,12 @@ public class GlobalExceptionHandler {
         return new ErrorResponse(400, ex.getMessage());
     }
 
+    @ExceptionHandler
+    @ResponseStatus
+    public ErrorResponse handleForbidden(ForbiddenException ex) {
+        return new ErrorResponse(403, ex.getMessage());
+    }
+
 
 
     @Data

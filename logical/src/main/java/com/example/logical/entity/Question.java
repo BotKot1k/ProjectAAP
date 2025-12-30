@@ -2,6 +2,7 @@ package com.example.logical.entity;
 
 
 
+import com.example.logical.dto.QuestionDTO;
 import jakarta.persistence.*;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -17,7 +18,7 @@ public class Question {
     @Id
     @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "question_seq")
     @SequenceGenerator(name = "question_seq", sequenceName = "question_seq", allocationSize = 1)
-    private Long question_id;
+    private Long questionId;
 
     private String question_name;
 
@@ -27,4 +28,11 @@ public class Question {
 
     @OneToMany(mappedBy = "question")
     private List<Test_question> test_questions;
+
+    public Question(QuestionDTO questionDTO) {
+        this.questionId = questionDTO.getQuestion_id();
+        this.question_name = questionDTO.getQuestion_name();
+        this.question_answer = questionDTO.getQuestion_answer();
+        this.answer_true = questionDTO.getAnswer_true();
+    }
 }

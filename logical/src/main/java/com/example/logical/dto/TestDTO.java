@@ -6,6 +6,7 @@ import lombok.NoArgsConstructor;
 @Data
 @NoArgsConstructor
 public class TestDTO {
+    private Long test_id;
     private String test_name;
 
 }

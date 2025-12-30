@@ -15,7 +15,7 @@ public class Course {
     @Id
     @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "course_seq")
     @SequenceGenerator(name = "course_seq", sequenceName = "course_seq", allocationSize = 1)
-    private long course_id;
+    private long courseId;
 
     private String course_name;
 
@@ -35,7 +35,7 @@ public class Course {
     private List<User_test_assessment> user_test_assessments;
 
     public Course(CourseDTO courseDTO) {
-        this.course_id = courseDTO.getCourse_id();
+        this.courseId = courseDTO.getCourse_id();
         this.course_name = courseDTO.getCourse_name();
         this.description = courseDTO.getDescription();
         this.teacher = new Users(courseDTO.getTeacher_id());
