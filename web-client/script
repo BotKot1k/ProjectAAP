@@ -1,503 +1,1059 @@
-// Конфигурация
+// ========== КОНФИГУРАЦИЯ ==========
 const API_BASE = 'http://localhost:3000/api';
-const SESSION_KEY = 'testing_system_session';
+const AUTH_BASE = 'http://localhost:3001/api';
+const SESSION_KEY = 'testing_session';
 
-// Состояние приложения
+// ========== СОСТОЯНИЕ ==========
 let state = {
-    user: null,
-    session: null,
+    status: 'unknown',
+    userId: null,
+    accessToken: null,
+    refreshToken: null,
+    sessionToken: null,
+    loginToken: null,
+    userRole: null,
     currentCourse: null,
     currentTest: null,
+    testQuestions: [],
+    currentQuestion: 0,
     answers: {},
-    questionIndex: 0
+    userData: null
 };
 
-// Инициализация
+// ========== ИНИЦИАЛИЗАЦИЯ ==========
 document.addEventListener('DOMContentLoaded', init);
 
-async function init() {
-    // Проверяем сессию
-    const session = localStorage.getItem(SESSION_KEY);
-    if (session) {
-        try {
-            state.session = JSON.parse(session);
-            if (await checkSession()) {
-                showStudentPanel();
-                loadUserData();
-                return;
-            }
-        } catch (e) {
-            console.error('Ошибка загрузки сессии:', e);
-        }
-    }
-    
-    showLoginPage();
+function init() {
+    checkSession();
     setupEventListeners();
 }
 
-// Проверка сессии на сервере
-async function checkSession() {
-    if (!state.session?.token) return false;
-    
-    try {
-        // В реальном приложении здесь будет запрос к серверу
-        // Например: fetch(`${API_BASE}/auth/check`, { headers: { 'Authorization': state.session.token } })
-        return true; // Заглушка
-    } catch (error) {
-        console.error('Ошибка проверки сессии:', error);
-        return false;
-    }
-}
-
-// Показать страницу входа
-function showLoginPage() {
-    document.getElementById('loginPage').classList.remove('hidden');
-    document.getElementById('studentPanel').classList.add('hidden');
-}
-
-// Показать панель студента
-function showStudentPanel() {
-    document.getElementById('loginPage').classList.add('hidden');
-    document.getElementById('studentPanel').classList.remove('hidden');
-    showPage('courses');
-}
-
-// Навигация по страницам
-function showPage(pageName) {
-    // Скрыть все страницы
-    document.querySelectorAll('.page').forEach(p => {
-        p.classList.remove('active');
-    });
-    
-    // Показать нужную страницу
-    const page = document.getElementById(pageName + 'Page');
-    if (page) {
-        page.classList.add('active');
-    }
-    
-    // Обновить навигацию
-    document.querySelectorAll('.nav-item').forEach(item => {
-        item.classList.remove('active');
-        if (item.dataset.page === pageName) {
-            item.classList.add('active');
-        }
-    });
-    
-    // Загрузить данные страницы
-    switch(pageName) {
-        case 'courses': loadCourses(); break;
-        case 'tests': loadTests(); break;
-        case 'results': loadResults(); break;
-        case 'profile': loadProfile(); break;
-    }
-}
-
-// Загрузка курсов
-async function loadCourses() {
-    const container = document.getElementById('coursesList');
-    container.innerHTML = '<div class="loading">Загрузка курсов...</div>';
-    
-    // Имитация загрузки данных
-    setTimeout(() => {
-        const courses = [
-            { id: 1, title: 'Основы программирования', description: 'Введение в Python', enrolled: true, teacher: 'Иванов И.И.', testsCount: 5 },
-            { id: 2, title: 'Математический анализ', description: 'Дифференциальное исчисление', enrolled: true, teacher: 'Петрова А.С.', testsCount: 3 },
-            { id: 3, title: 'Базы данных', description: 'SQL и проектирование', enrolled: false, teacher: 'Сидоров В.В.', testsCount: 4 }
-        ];
-        
-        container.innerHTML = courses.map(course => `
-            <div class="course-card">
-                <h3>${course.title}</h3>
-                <p>${course.description}</p>
-                <p><strong>Преподаватель:</strong> ${course.teacher}</p>
-                <p><strong>Тестов:</strong> ${course.testsCount}</p>
-                <button onclick="viewCourse(${course.id})" class="btn btn-primary">
-                    ${course.enrolled ? 'Перейти к тестам' : 'Записаться на курс'}
-                </button>
-            </div>
-        `).join('');
-    }, 500);
-}
-
-// Просмотр курса
-function viewCourse(courseId) {
-    state.currentCourse = courseId;
-    loadTests();
-    showPage('tests');
-}
-
-// Загрузка тестов
-async function loadTests() {
-    const container = document.getElementById('testsList');
-    container.innerHTML = '<div class="loading">Загрузка тестов...</div>';
-    
-    setTimeout(() => {
-        const tests = [
-            { id: 1, title: 'Тест 1: Основные понятия', status: 'active', passed: false, questions: 5, time: 30 },
-            { id: 2, title: 'Тест 2: Условные операторы', status: 'active', passed: true, questions: 8, time: 45 },
-            { id: 3, title: 'Тест 3: Циклы', status: 'inactive', passed: false, questions: 10, time: 60 }
-        ];
-        
-        container.innerHTML = tests.map(test => `
-            <div class="test-card">
-                <h3>${test.title}</h3>
-                <p><strong>Статус:</strong> ${test.status === 'active' ? 'Активен' : 'Неактивен'}</p>
-                <p><strong>Вопросов:</strong> ${test.questions}</p>
-                <p><strong>Время:</strong> ${test.time} минут</p>
-                <button onclick="startTest(${test.id})" class="btn btn-primary" 
-                        ${test.status !== 'active' || test.passed ? 'disabled' : ''}>
-                    ${test.passed ? 'Пройден' : test.status === 'active' ? 'Начать тест' : 'Недоступен'}
-                </button>
-            </div>
-        `).join('');
-    }, 500);
-}
-
-// Начать тест
-function startTest(testId) {
-    state.currentTest = testId;
-    state.answers = {};
-    state.questionIndex = 0;
-    
-    loadQuestion();
-    showPage('test');
-}
-
-// Загрузка вопроса
-async function loadQuestion() {
-    const container = document.getElementById('questionContainer');
-    const questions = [
-        { 
-            id: 1, 
-            text: 'Что такое переменная в программировании?', 
-            options: [
-                'Имя для области памяти, где хранятся данные',
-                'Тип данных',
-                'Функция',
-                'Оператор'
-            ],
-            correctAnswer: 0
-        },
-        { 
-            id: 2, 
-            text: 'Какой оператор используется для присваивания значения в Python?', 
-            options: [
-                '=',
-                '==',
-                ':=',
-                '=>'
-            ],
-            correctAnswer: 0
-        },
-        { 
-            id: 3, 
-            text: 'Что выведет print(2 + 2 * 2)?', 
-            options: [
-                '6',
-                '8',
-                '4',
-                'Ошибка'
-            ],
-            correctAnswer: 0
-        }
-    ];
-    
-    if (state.questionIndex < questions.length) {
-        const q = questions[state.questionIndex];
-        
-        container.innerHTML = `
-            <div class="question">
-                <h3>Вопрос ${state.questionIndex + 1} из ${questions.length}</h3>
-                <p>${q.text}</p>
-                <div class="options">
-                    ${q.options.map((opt, i) => `
-                        <div class="option" onclick="selectAnswer(${q.id}, ${i})">
-                            ${String.fromCharCode(65 + i)}) ${opt}
-                        </div>
-                    `).join('')}
-                </div>
-            </div>
-        `;
-        
-        // Обновить заголовок теста
-        document.getElementById('testTitle').textContent = `Тестирование - Вопрос ${state.questionIndex + 1}`;
-        
-        // Обновить кнопки навигации
-        document.getElementById('nextBtn').classList.remove('hidden');
-        document.getElementById('submitBtn').classList.add('hidden');
-        
-        // Показать кнопку завершения на последнем вопросе
-        if (state.questionIndex === questions.length - 1) {
-            document.getElementById('nextBtn').classList.add('hidden');
-            document.getElementById('submitBtn').classList.remove('hidden');
-        }
-        
-        // Восстановить выбранный ответ, если есть
-        if (state.answers[q.id] !== undefined) {
-            selectAnswer(q.id, state.answers[q.id]);
-        }
-    }
-}
-
-// Выбор ответа
-function selectAnswer(questionId, answerIndex) {
-    state.answers[questionId] = answerIndex;
-    
-    // Подсветка выбранного варианта
-    const options = document.querySelectorAll('.option');
-    options.forEach((opt, i) => {
-        opt.classList.remove('selected');
-    });
-    
-    if (options[answerIndex]) {
-        options[answerIndex].classList.add('selected');
-    }
-}
-
-// Следующий вопрос
-function nextQuestion() {
-    state.questionIndex++;
-    loadQuestion();
-}
-
-// Завершение теста
-function submitTest() {
-    // Подсчет правильных ответов
-    const questions = [
-        { id: 1, correctAnswer: 0 },
-        { id: 2, correctAnswer: 0 },
-        { id: 3, correctAnswer: 0 }
-    ];
-    
-    let correct = 0;
-    questions.forEach(q => {
-        if (state.answers[q.id] === q.correctAnswer) {
-            correct++;
-        }
-    });
-    
-    const score = Math.round((correct / questions.length) * 100);
-    
-    // Показать результат
-    document.getElementById('resultContent').innerHTML = `
-        <h3>Результат теста</h3>
-        <p><strong>Правильных ответов:</strong> ${correct} из ${questions.length}</p>
-        <p><strong>Процент выполнения:</strong> ${score}%</p>
-        <p><strong>Оценка:</strong> ${getGrade(score)}</p>
-        <p><strong>Статус:</strong> ${score >= 60 ? 'Зачет' : 'Незачет'}</p>
-    `;
-    
-    showPage('result');
-}
-
-// Получение оценки
-function getGrade(score) {
-    if (score >= 90) return '5 (Отлично)';
-    if (score >= 75) return '4 (Хорошо)';
-    if (score >= 60) return '3 (Удовлетворительно)';
-    return '2 (Неудовлетворительно)';
-}
-
-// Загрузка результатов
-async function loadResults() {
-    const container = document.getElementById('resultsList');
-    container.innerHTML = '<div class="loading">Загрузка результатов...</div>';
-    
-    setTimeout(() => {
-        const results = [
-            { test: 'Тест 1: Основные понятия', course: 'Программирование', score: '5/5 (100%)', date: '2023-10-01', time: '15 мин' },
-            { test: 'Тест 2: Условные операторы', course: 'Программирование', score: '4/5 (80%)', date: '2023-10-05', time: '20 мин' },
-            { test: 'Производные', course: 'Математика', score: '3/5 (60%)', date: '2023-10-10', time: '25 мин' }
-        ];
-        
-        container.innerHTML = results.map(r => `
-            <div class="test-card">
-                <h3>${r.test}</h3>
-                <p><strong>Курс:</strong> ${r.course}</p>
-                <p><strong>Оценка:</strong> ${r.score}</p>
-                <p><strong>Дата:</strong> ${r.date}</p>
-                <p><strong>Время:</strong> ${r.time}</p>
-            </div>
-        `).join('');
-    }, 500);
-}
-
-// Загрузка профиля
-async function loadProfile() {
-    const container = document.getElementById('profileInfo');
-    
-    container.innerHTML = `
-        <div class="course-card">
-            <h3>Информация о пользователе</h3>
-            <p><strong>ФИО:</strong> Иван Петров</p>
-            <p><strong>Группа:</strong> 1 курс, группа 101</p>
-            <p><strong>Email:</strong> student@example.com</p>
-            <p><strong>Роль:</strong> Студент</p>
-            <p><strong>Дата регистрации:</strong> 2023-09-01</p>
-        </div>
-        
-        <div class="course-card">
-            <h3>Статистика</h3>
-            <p><strong>Курсов записано:</strong> 2</p>
-            <p><strong>Тестов пройдено:</strong> 3</p>
-            <p><strong>Средний балл:</strong> 4.0</p>
-        </div>
-    `;
-}
-
-// Обработчики событий
 function setupEventListeners() {
-    // Кнопки авторизации
-    document.querySelectorAll('.auth-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            const provider = btn.dataset.provider;
-            handleAuth(provider);
-        });
-    });
-    
-    // Навигация
-    document.querySelectorAll('.nav-item').forEach(item => {
-        item.addEventListener('click', () => {
-            if (item.id === 'logoutBtn') {
-                logout();
-            } else if (item.dataset.page) {
-                showPage(item.dataset.page);
-            }
-        });
-    });
-    
-    // Модальное окно кода
-    document.getElementById('submitCodeBtn').addEventListener('click', submitCode);
-    document.getElementById('cancelCodeBtn').addEventListener('click', hideCodeModal);
-    
-    // Навигация теста
-    document.getElementById('nextBtn').addEventListener('click', nextQuestion);
-    document.getElementById('submitBtn').addEventListener('click', submitTest);
-    
-    // Назад к тестам
-    document.getElementById('backBtn').addEventListener('click', () => {
-        showPage('tests');
+    document.getElementById('authCode').addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') submitCode();
     });
 }
 
-// Обработка авторизации
-async function handleAuth(provider) {
-    if (provider === 'code') {
-        showCodeModal();
-    } else {
-        // Имитация OAuth авторизации
-        showAuthPending(provider);
-        
-        setTimeout(() => {
-            completeAuth(provider);
-        }, 1500);
-    }
+// ========== ВСЕ 15 API ENDPOINTS ==========
+
+// 1. GET /api/users - получить всех пользователей
+async function getAllUsers() {
+    return await apiRequest(`${API_BASE}/users`);
 }
 
-// Показать модальное окно кода
-function showCodeModal() {
-    document.getElementById('codeModal').classList.remove('hidden');
-    document.getElementById('codeInput').value = '';
-    document.getElementById('codeInput').focus();
+// 2. GET /api/user/{user_id} - получить пользователя
+async function getUser(userId) {
+    return await apiRequest(`${API_BASE}/user/${userId}`);
 }
 
-// Скрыть модальное окно
-function hideCodeModal() {
-    document.getElementById('codeModal').classList.add('hidden');
+// 2. PATCH /api/user/{user_id} - обновить пользователя
+async function updateUser(userId, data) {
+    return await apiRequest(`${API_BASE}/user/${userId}`, 'PATCH', data);
 }
 
-// Отправить код
-function submitCode() {
-    const code = document.getElementById('codeInput').value.trim();
+// 3. GET /api/course/user/{user_id} - курсы пользователя
+async function getUserCourses(userId) {
+    return await apiRequest(`${API_BASE}/course/user/${userId}`);
+}
+
+// 4. GET /api/courses - все курсы
+async function getAllCourses() {
+    return await apiRequest(`${API_BASE}/courses`);
+}
+
+// 5. GET /api/course/{course_id} - получить курс
+async function getCourse(courseId) {
+    return await apiRequest(`${API_BASE}/course/${courseId}`);
+}
+
+// 5. PATCH /api/course/{course_id} - обновить курс
+async function updateCourse(courseId, data) {
+    return await apiRequest(`${API_BASE}/course/${courseId}`, 'PATCH', data);
+}
+
+// 5. DELETE /api/course/{course_id} - удалить курс
+async function deleteCourse(courseId) {
+    return await apiRequest(`${API_BASE}/course/${courseId}`, 'DELETE');
+}
+
+// 6. GET /api/course/{course_id}/test - тесты курса
+async function getCourseTests(courseId) {
+    return await apiRequest(`${API_BASE}/course/${courseId}/test`);
+}
+
+// 6. POST /api/course/{course_id}/test - создать тест
+async function createTest(courseId, name) {
+    return await apiRequest(`${API_BASE}/course/${courseId}/test`, 'POST', { name });
+}
+
+// 7. GET /api/course/{course_id}/test/{test_id} - вопросы теста
+async function getTestQuestions(courseId, testId) {
+    return await apiRequest(`${API_BASE}/course/${courseId}/test/${testId}`);
+}
+
+// 7. DELETE /api/course/{course_id}/test/{test_id} - удалить тест
+async function deleteTest(courseId, testId) {
+    return await apiRequest(`${API_BASE}/course/${courseId}/test/${testId}`, 'DELETE');
+}
+
+// 8. POST /api/course/{course_id}/user/{user_id} - запись на курс
+async function enrollToCourse(courseId, userId) {
+    return await apiRequest(`${API_BASE}/course/${courseId}/user/${userId}`, 'POST');
+}
+
+// 8. DELETE /api/course/{course_id}/user/{user_id} - отчисление с курса
+async function leaveCourse(courseId, userId) {
+    return await apiRequest(`${API_BASE}/course/${courseId}/user/${userId}`, 'DELETE');
+}
+
+// 9. POST /api/course - создать курс
+async function createCourse(data) {
+    return await apiRequest(`${API_BASE}/course`, 'POST', data);
+}
+
+// 10. GET /api/test/{test_id} - вопросы теста
+async function getTest(testId) {
+    return await apiRequest(`${API_BASE}/test/${testId}`);
+}
+
+// 11. PATCH /api/question/{question_id} - обновить вопрос
+async function updateQuestion(questionId, data) {
+    return await apiRequest(`${API_BASE}/question/${questionId}`, 'PATCH', data);
+}
+
+// 11. POST /api/question - создать вопрос
+async function createQuestion(data) {
+    return await apiRequest(`${API_BASE}/question`, 'POST', data);
+}
+
+// 11. DELETE /api/question/{question_id} - удалить вопрос
+async function deleteQuestion(questionId) {
+    return await apiRequest(`${API_BASE}/question/${questionId}`, 'DELETE');
+}
+
+// 12. DELETE /api/test/{test_id}/question/{question_id} - удалить вопрос из теста
+async function deleteQuestionFromTest(testId, questionId) {
+    return await apiRequest(`${API_BASE}/test/${testId}/question/${questionId}`, 'DELETE');
+}
+
+// 12. POST /api/test/{test_id}/question/{question_id} - добавить вопрос в тест
+async function addQuestionToTest(testId, questionId) {
+    return await apiRequest(`${API_BASE}/test/${testId}/question/${questionId}`, 'POST');
+}
+
+// 12. PUT /api/test/{test_id}/question/{question_id} - обновить порядок вопроса
+async function updateQuestionOrder(testId, questionId, data) {
+    return await apiRequest(`${API_BASE}/test/${testId}/question/${questionId}`, 'PUT', data);
+}
+
+// 13. GET /api/course/{course_id}/test/{test_id}/user/{user_id} - оценка пользователя
+async function getUserTestScore(courseId, testId, userId) {
+    return await apiRequest(`${API_BASE}/course/${courseId}/test/${testId}/user/${userId}`);
+}
+
+// 14. GET /api/course/{course_id}/test/{test_id} - все пользователи теста
+async function getTestParticipants(courseId, testId) {
+    return await apiRequest(`${API_BASE}/course/${courseId}/test/${testId}`);
+}
+
+// 15. GET /api/test/{test_id}/user/{user_id} - ответы пользователя
+async function getUserTestAnswers(testId, userId) {
+    return await apiRequest(`${API_BASE}/test/${testId}/user/${userId}`);
+}
+
+// ДОПОЛНИТЕЛЬНЫЙ: Отправить ответы на тест
+async function submitTestAnswers(testId, userId, answers) {
+    return await apiRequest(`${API_BASE}/test/${testId}/submit`, 'POST', {
+        userId,
+        answers,
+        timestamp: new Date().toISOString()
+    });
+}
+
+// ========== СЕССИИ И АВТОРИЗАЦИЯ ==========
+async function checkSession() {
+    const session = localStorage.getItem(SESSION_KEY);
     
-    if (code.length !== 6 || !/^\d+$/.test(code)) {
-        alert('Введите 6-значный цифровой код');
+    if (!session) {
+        updateStatus('unknown');
         return;
     }
     
-    // Имитация проверки кода
-    showAuthPending('code');
+    try {
+        const data = JSON.parse(session);
+        state.sessionToken = data.sessionToken;
+        
+        const sessionData = await apiRequest(`${API_BASE}/session/${state.sessionToken}`, 'GET');
+        
+        if (!sessionData || sessionData.error) {
+            updateStatus('unknown');
+            return;
+        }
+        
+        state.status = sessionData.status;
+        
+        if (state.status === 'anonymous') {
+            state.loginToken = sessionData.loginToken;
+            updateStatus('anonymous');
+            startAuthCheck();
+        } else if (state.status === 'authorized') {
+            state.userId = sessionData.userId;
+            state.accessToken = sessionData.accessToken;
+            state.refreshToken = sessionData.refreshToken;
+            updateStatus('authorized');
+            loadUserData();
+        }
+    } catch (error) {
+        updateStatus('unknown');
+    }
+}
+
+function updateStatus(newStatus) {
+    state.status = newStatus;
     
-    setTimeout(() => {
-        completeAuth('code');
+    document.getElementById('userStatus').textContent = `Статус: ${getStatusText(newStatus)}`;
+    
+    document.querySelectorAll('.state').forEach(el => el.classList.remove('active'));
+    document.getElementById(`state${capitalize(newStatus)}`).classList.add('active');
+}
+
+function getStatusText(status) {
+    const texts = {
+        unknown: 'Неизвестный',
+        anonymous: 'Анонимный',
+        authorized: 'Авторизованный'
+    };
+    return texts[status] || status;
+}
+
+function capitalize(str) {
+    return str.charAt(0).toUpperCase() + str.slice(1);
+}
+
+// ========== АВТОРИЗАЦИЯ ==========
+async function startAuth(provider) {
+    try {
+        state.sessionToken = generateToken();
+        state.loginToken = generateToken();
+        
+        await apiRequest(`${API_BASE}/session`, 'POST', {
+            sessionToken: state.sessionToken,
+            loginToken: state.loginToken,
+            status: 'anonymous'
+        });
+        
+        document.cookie = `session_token=${state.sessionToken}; path=/`;
+        
+        localStorage.setItem(SESSION_KEY, JSON.stringify({
+            sessionToken: state.sessionToken,
+            loginToken: state.loginToken
+        }));
+        
+        state.status = 'anonymous';
+        updateStatus('anonymous');
+        
+        if (provider === 'code') {
+            showCodeModal();
+        } else {
+            window.location.href = `${AUTH_BASE}/auth/${provider}?login_token=${state.loginToken}`;
+            startAuthCheck();
+        }
+    } catch (error) {
+        alert('Ошибка начала авторизации');
+    }
+}
+
+function showCodeModal() {
+    document.getElementById('codeModal').classList.add('active');
+    document.getElementById('authCode').focus();
+}
+
+function hideCodeModal() {
+    document.getElementById('codeModal').classList.remove('active');
+    document.getElementById('authCode').value = '';
+}
+
+async function submitCode() {
+    const code = document.getElementById('authCode').value;
+    
+    if (code.length !== 6) {
+        alert('Введите 6-значный код');
+        return;
+    }
+    
+    try {
+        await apiRequest(`${AUTH_BASE}/auth/code`, 'POST', {
+            code: code,
+            loginToken: state.loginToken
+        });
+        
         hideCodeModal();
-    }, 1500);
+        startAuthCheck();
+    } catch (error) {
+        alert('Неверный код');
+    }
 }
 
-// Показать ожидание авторизации
-function showAuthPending(provider) {
-    const btn = document.querySelector(`.auth-btn[data-provider="${provider}"]`);
-    const originalText = btn.innerHTML;
-    btn.innerHTML = '<span>Ожидание подтверждения...</span>';
-    btn.disabled = true;
+function startAuthCheck() {
+    const interval = setInterval(async () => {
+        try {
+            const response = await fetch(`${AUTH_BASE}/auth/status?login_token=${state.loginToken}`);
+            const data = await response.json();
+            
+            if (data.status === 'authorized') {
+                clearInterval(interval);
+                
+                state.accessToken = data.accessToken;
+                state.refreshToken = data.refreshToken;
+                state.userId = data.user.id;
+                state.userRole = data.user.role || 'student';
+                
+                await apiRequest(`${API_BASE}/session/${state.sessionToken}`, 'PATCH', {
+                    status: 'authorized',
+                    userId: state.userId,
+                    accessToken: state.accessToken,
+                    refreshToken: state.refreshToken
+                });
+                
+                localStorage.setItem(SESSION_KEY, JSON.stringify({
+                    sessionToken: state.sessionToken,
+                    accessToken: state.accessToken,
+                    refreshToken: state.refreshToken,
+                    userId: state.userId
+                }));
+                
+                updateStatus('authorized');
+                loadUserData();
+                
+            } else if (data.status === 'denied') {
+                clearInterval(interval);
+                cancelAuth();
+                alert('Авторизация отклонена');
+            }
+        } catch (error) {}
+    }, 3000);
+}
+
+function cancelAuth() {
+    if (state.sessionToken) {
+        apiRequest(`${API_BASE}/session/${state.sessionToken}`, 'DELETE');
+    }
     
-    setTimeout(() => {
-        btn.innerHTML = originalText;
-        btn.disabled = false;
-    }, 1500);
-}
-
-// Завершить авторизацию
-function completeAuth(provider) {
-    // Сохраняем пользователя и сессию
-    state.user = {
-        id: 1,
-        name: 'Иван Петров',
-        email: 'student@example.com',
-        role: 'student',
-        group: '1 курс'
+    localStorage.removeItem(SESSION_KEY);
+    document.cookie = 'session_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+    
+    state = {
+        status: 'unknown',
+        userId: null,
+        accessToken: null,
+        refreshToken: null,
+        sessionToken: null,
+        loginToken: null,
+        userRole: null,
+        currentCourse: null,
+        currentTest: null,
+        testQuestions: [],
+        currentQuestion: 0,
+        answers: {},
+        userData: null
     };
     
-    state.session = {
-        token: 'demo_token_' + Date.now(),
-        provider: provider,
-        timestamp: Date.now()
-    };
-    
-    localStorage.setItem(SESSION_KEY, JSON.stringify(state.session));
-    showStudentPanel();
-    
-    // Показать уведомление
-    alert(`Авторизация через ${getProviderName(provider)} успешна!`);
+    updateStatus('unknown');
 }
 
-// Получить название провайдера
-function getProviderName(provider) {
-    const names = {
-        'github': 'GitHub',
-        'yandex': 'Яндекс',
-        'code': 'Код'
+// ========== API ФУНКЦИИ ==========
+async function apiRequest(url, method = 'GET', data = null) {
+    const options = {
+        method: method,
+        headers: {}
     };
-    return names[provider] || provider;
+    
+    if (state.accessToken && !url.includes('/session') && !url.includes('/auth')) {
+        options.headers['Authorization'] = `Bearer ${state.accessToken}`;
+    }
+    
+    if (data) {
+        options.headers['Content-Type'] = 'application/json';
+        options.body = JSON.stringify(data);
+    }
+    
+    try {
+        const response = await fetch(url, options);
+        
+        if (response.status === 401 && state.refreshToken) {
+            const newTokens = await refreshAccessToken();
+            if (newTokens) {
+                options.headers['Authorization'] = `Bearer ${newTokens.accessToken}`;
+                return await fetch(url, options);
+            } else {
+                await logout();
+                return null;
+            }
+        }
+        
+        if (response.status === 403) {
+            alert('Недостаточно прав');
+            return null;
+        }
+        
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+        }
+        
+        return await response.json();
+    } catch (error) {
+        console.error(`API ошибка (${method} ${url}):`, error);
+        throw error;
+    }
 }
 
-// Загрузка данных пользователя
+async function refreshAccessToken() {
+    try {
+        const response = await fetch(`${AUTH_BASE}/auth/refresh`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ refreshToken: state.refreshToken })
+        });
+        
+        if (response.ok) {
+            const tokens = await response.json();
+            
+            state.accessToken = tokens.accessToken;
+            state.refreshToken = tokens.refreshToken;
+            
+            const session = JSON.parse(localStorage.getItem(SESSION_KEY) || '{}');
+            session.accessToken = tokens.accessToken;
+            session.refreshToken = tokens.refreshToken;
+            localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+            
+            return tokens;
+        }
+    } catch (error) {}
+    
+    return null;
+}
+
+// ========== ПОЛЬЗОВАТЕЛЬСКИЙ ИНТЕРФЕЙС ==========
+function showSection(sectionName) {
+    document.querySelectorAll('.section').forEach(el => el.classList.remove('active'));
+    document.getElementById(`section${capitalize(sectionName)}`).classList.add('active');
+    
+    document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
+    document.querySelector(`.nav-btn[onclick*="${sectionName}"]`)?.classList.add('active');
+    
+    switch(sectionName) {
+        case 'courses':
+            loadUserCourses();
+            break;
+        case 'allcourses':
+            loadAllCourses();
+            break;
+        case 'tests':
+            if (state.currentCourse) {
+                loadCourseTests(state.currentCourse);
+            }
+            break;
+        case 'results':
+            loadUserResults();
+            break;
+        case 'profile':
+            loadProfile();
+            break;
+        case 'admin':
+            loadAdminPanel();
+            break;
+    }
+}
+
 async function loadUserData() {
-    // В реальном приложении здесь запрос к API
-    if (!state.user) {
-        state.user = {
-            id: 1,
-            name: 'Иван Петров',
-            email: 'student@example.com',
-            role: 'student',
-            group: '1 курс'
-        };
+    try {
+        const user = await getUser(state.userId);
+        state.userData = user;
+        state.userRole = user.role || 'student';
+        
+        document.getElementById('userInfo').textContent = `${user.name || 'Студент'} (${user.email || ''})`;
+        
+        // Показываем админ-панель для преподавателей
+        if (state.userRole === 'teacher' || state.userRole === 'admin') {
+            document.querySelector('.admin-btn').style.display = 'block';
+        }
+    } catch (error) {
+        console.error('Ошибка загрузки данных пользователя:', error);
     }
 }
 
-// Выход из системы
-function logout() {
-    if (confirm('Вы уверены, что хотите выйти?')) {
-        state.user = null;
-        state.session = null;
-        localStorage.removeItem(SESSION_KEY);
-        showLoginPage();
+async function loadUserCourses() {
+    const container = document.getElementById('coursesList');
+    container.innerHTML = '<div class="loading">Загрузка курсов...</div>';
+    
+    try {
+        const courses = await getUserCourses(state.userId);
+        
+        if (!courses || courses.length === 0) {
+            container.innerHTML = '<div class="card"><p>Вы не записаны ни на один курс</p></div>';
+            return;
+        }
+        
+        container.innerHTML = courses.map(course => `
+            <div class="card">
+                <h3>${course.name || 'Курс'}</h3>
+                <p>${course.description || 'Описание отсутствует'}</p>
+                <div class="card-actions">
+                    <button onclick="viewCourse('${course.id}')" class="btn-primary">Перейти к тестам</button>
+                    <button onclick="leaveCourseAction('${course.id}')" class="btn-secondary">Отписаться</button>
+                </div>
+            </div>
+        `).join('');
+    } catch (error) {
+        container.innerHTML = '<div class="card"><p>Ошибка загрузки курсов</p></div>';
     }
 }
 
-// Экспорт функций для использования в HTML
-window.viewCourse = viewCourse;
-window.startTest = startTest;
-window.selectAnswer = selectAnswer;
-window.nextQuestion = nextQuestion;
-window.submitTest = submitTest;
+async function loadAllCourses() {
+    const container = document.getElementById('allCoursesList');
+    container.innerHTML = '<div class="loading">Загрузка всех курсов...</div>';
+    
+    try {
+        const allCourses = await getAllCourses();
+        const userCourses = await getUserCourses(state.userId);
+        const userCourseIds = userCourses.map(course => course.id);
+        
+        if (!allCourses || allCourses.length === 0) {
+            container.innerHTML = '<div class="card"><p>Нет доступных курсов</p></div>';
+            return;
+        }
+        
+        container.innerHTML = allCourses.map(course => `
+            <div class="card">
+                <h3>${course.name || 'Курс'}</h3>
+                <p>${course.description || ''}</p>
+                <div class="card-actions">
+                    ${userCourseIds.includes(course.id) 
+                        ? '<button class="btn-secondary" disabled>Записан</button>'
+                        : `<button onclick="enrollToCourseAction('${course.id}')" class="btn-primary">Записаться</button>`
+                    }
+                    ${state.userRole === 'teacher' || state.userRole === 'admin' 
+                        ? `<button onclick="deleteCourseAction('${course.id}')" class="btn-danger">Удалить</button>`
+                        : ''
+                    }
+                </div>
+            </div>
+        `).join('');
+    } catch (error) {
+        container.innerHTML = '<div class="card"><p>Ошибка загрузки курсов</p></div>';
+    }
+}
+
+async function enrollToCourseAction(courseId) {
+    try {
+        await enrollToCourse(courseId, state.userId);
+        alert('Вы успешно записались на курс');
+        loadAllCourses();
+        loadUserCourses();
+    } catch (error) {
+        alert('Ошибка записи на курс');
+    }
+}
+
+async function deleteCourseAction(courseId) {
+    if (!confirm('Вы уверены, что хотите удалить курс?')) return;
+    
+    try {
+        await deleteCourse(courseId);
+        alert('Курс удален');
+        loadAllCourses();
+    } catch (error) {
+        alert('Ошибка удаления курса');
+    }
+}
+
+async function viewCourse(courseId) {
+    state.currentCourse = courseId;
+    
+    try {
+        const course = await getCourse(courseId);
+        document.getElementById('courseInfo').innerHTML = `
+            <div class="card">
+                <h3>${course.name || 'Курс'}</h3>
+                <p>${course.description || ''}</p>
+            </div>
+        `;
+    } catch (error) {
+        console.error('Ошибка загрузки информации о курсе:', error);
+    }
+    
+    loadCourseTests(courseId);
+    showSection('tests');
+}
+
+async function loadCourseTests(courseId) {
+    const container = document.getElementById('testsList');
+    container.innerHTML = '<div class="loading">Загрузка тестов...</div>';
+    
+    try {
+        const tests = await getCourseTests(courseId);
+        
+        if (!tests || tests.length === 0) {
+            container.innerHTML = '<div class="card"><p>Нет доступных тестов</p></div>';
+            return;
+        }
+        
+        container.innerHTML = tests.map(test => `
+            <div class="card">
+                <h3>${test.name || 'Тест'}</h3>
+                <p>Статус: ${test.active ? 'Активен' : 'Неактивен'}</p>
+                <p>Количество вопросов: ${test.questionCount || '?'}</p>
+                <div class="card-actions">
+                    <button onclick="startTest('${courseId}', '${test.id}')" 
+                            class="btn-primary" ${!test.active ? 'disabled' : ''}>
+                        Начать тест
+                    </button>
+                    <button onclick="viewTestResults('${courseId}', '${test.id}')" 
+                            class="btn-secondary">
+                        Результаты
+                    </button>
+                    ${state.userRole === 'teacher' || state.userRole === 'admin' 
+                        ? `<button onclick="deleteTestAction('${courseId}', '${test.id}')" 
+                           class="btn-danger">Удалить тест</button>`
+                        : ''
+                    }
+                </div>
+            </div>
+        `).join('');
+        
+        // Добавляем кнопку создания теста для преподавателей
+        if (state.userRole === 'teacher' || state.userRole === 'admin') {
+            container.innerHTML += `
+                <div class="card">
+                    <h3>Создать новый тест</h3>
+                    <div class="card-actions">
+                        <button onclick="showCreateTestModal('${courseId}')" 
+                                class="btn-primary">
+                            + Создать тест
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
+    } catch (error) {
+        container.innerHTML = '<div class="card"><p>Ошибка загрузки тестов</p></div>';
+    }
+}
+
+function showCreateTestModal(courseId) {
+    document.getElementById('createTestCourseId').value = courseId;
+    document.getElementById('testNameInput').value = '';
+    document.getElementById('createTestModal').classList.add('active');
+}
+
+async function adminCreateTestSubmit() {
+    const courseId = document.getElementById('createTestCourseId').value;
+    const testName = document.getElementById('testNameInput').value;
+    
+    if (!testName) {
+        alert('Введите название теста');
+        return;
+    }
+    
+    try {
+        await createTest(courseId, testName);
+        alert('Тест создан');
+        hideModal('createTestModal');
+        loadCourseTests(courseId);
+    } catch (error) {
+        alert('Ошибка создания теста');
+    }
+}
+
+async function deleteTestAction(courseId, testId) {
+    if (!confirm('Удалить тест?')) return;
+    
+    try {
+        await deleteTest(courseId, testId);
+        alert('Тест удален');
+        loadCourseTests(courseId);
+    } catch (error) {
+        alert('Ошибка удаления теста');
+    }
+}
+
+async function startTest(courseId, testId) {
+    state.currentCourse = courseId;
+    state.currentTest = testId;
+    state.currentQuestion = 0;
+    state.answers = {};
+    
+    try {
+        const questions = await getTestQuestions(courseId, testId);
+        state.testQuestions = questions;
+        
+        const test = await getTest(testId);
+        document.getElementById('testTitle').textContent = test.name || 'Тест';
+        
+        showSection('test');
+        loadQuestion();
+    } catch (error) {
+        alert('Ошибка загрузки теста');
+    }
+}
+
+function loadQuestion() {
+    if (state.currentQuestion >= state.testQuestions.length) {
+        finishTest();
+        return;
+    }
+    
+    const question = state.testQuestions[state.currentQuestion];
+    document.getElementById('questionCounter').textContent = 
+        `Вопрос ${state.currentQuestion + 1}/${state.testQuestions.length}`;
+    
+    const content = document.getElementById('testContent');
+    content.innerHTML = `
+        <div class="question">
+            <div class="question-text">
+                <h3>${question.text || 'Вопрос'}</h3>
+            </div>
+            <div class="options">
+                ${(question.options || []).map((option, index) => `
+                    <div class="option ${state.answers[question.id] === index ? 'selected' : ''}" 
+                         onclick="selectAnswer('${question.id}', ${index})">
+                        ${String.fromCharCode(65 + index)}. ${option}
+                    </div>
+                `).join('')}
+            </div>
+            <div class="question-nav">
+                ${state.currentQuestion > 0 
+                    ? `<button onclick="prevQuestion()" class="btn-secondary">← Назад</button>` 
+                    : ''
+                }
+                <button onclick="nextQuestion()" class="btn-primary">
+                    ${state.currentQuestion === state.testQuestions.length - 1 
+                        ? 'Завершить тест' 
+                        : 'Следующий вопрос →'
+                    }
+                </button>
+            </div>
+        </div>
+    `;
+}
+
+function selectAnswer(questionId, answerIndex) {
+    state.answers[questionId] = answerIndex;
+    
+    document.querySelectorAll('.option').forEach(option => {
+        option.classList.remove('selected');
+    });
+    event.target.classList.add('selected');
+}
+
+function prevQuestion() {
+    state.currentQuestion--;
+    loadQuestion();
+}
+
+function nextQuestion() {
+    state.currentQuestion++;
+    loadQuestion();
+}
+
+async function finishTest() {
+    try {
+        // Отправляем ответы на сервер
+        await submitTestAnswers(state.currentTest, state.userId, state.answers);
+        
+        // Получаем результаты
+        await showTestResults();
+    } catch (error) {
+        console.error('Ошибка завершения теста:', error);
+        alert('Ошибка сохранения ответов');
+    }
+}
+
+async function showTestResults() {
+    try {
+        const score = await getUserTestScore(state.currentCourse, state.currentTest, state.userId);
+        const answers = await getUserTestAnswers(state.currentTest, state.userId);
+        
+        let correct = 0;
+        let total = state.testQuestions.length;
+        
+        state.testQuestions.forEach(question => {
+            if (state.answers[question.id] === question.correctAnswer) {
+                correct++;
+            }
+        });
+        
+        const resultContent = document.getElementById('testResultContent');
+        resultContent.innerHTML = `
+            <div class="result-details">
+                <p><strong>Правильных ответов:</strong> ${correct} из ${total}</p>
+                <p><strong>Процент:</strong> ${Math.round((correct / total) * 100)}%</p>
+                ${score ? `<p><strong>Оценка:</strong> ${score}</p>` : ''}
+            </div>
+            <div class="answers-review">
+                <h3>Ваши ответы:</h3>
+                ${state.testQuestions.map((question, index) => `
+                    <div class="answer-item">
+                        <p><strong>Вопрос ${index + 1}:</strong> ${question.text}</p>
+                        <p>Ваш ответ: ${question.options[state.answers[question.id]] || 'Нет ответа'}</p>
+                        <p>Правильный ответ: ${question.options[question.correctAnswer]}</p>
+                        <p>${state.answers[question.id] === question.correctAnswer ? '✅ Правильно' : '❌ Неправильно'}</p>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+        
+        showSection('testResult');
+    } catch (error) {
+        alert('Ошибка загрузки результатов теста');
+    }
+}
+
+async function viewTestResults(courseId, testId) {
+    state.currentCourse = courseId;
+    state.currentTest = testId;
+    await showTestResults();
+}
+
+function backToTests() {
+    showSection('tests');
+    if (state.currentCourse) {
+        loadCourseTests(state.currentCourse);
+    }
+}
+
+async function loadUserResults() {
+    const container = document.getElementById('resultsList');
+    container.innerHTML = '<div class="loading">Загрузка результатов...</div>';
+    
+    try {
+        const courses = await getUserCourses(state.userId);
+        
+        let allResults = [];
+        
+        for (const course of courses) {
+            try {
+                const tests = await getCourseTests(course.id);
+                
+                for (const test of tests) {
+                    try {
+                        const score = await getUserTestScore(course.id, test.id, state.userId);
+                        if (score) {
+                            allResults.push({
+                                course: course.name,
+                                test: test.name,
+                                score: score,
+                                date: new Date().toLocaleDateString()
+                            });
+                        }
+                    } catch (error) {}
+                }
+            } catch (error) {}
+        }
+        
+        if (allResults.length === 0) {
+            container.innerHTML = '<div class="card"><p>Нет результатов тестирования</p></div>';
+            return;
+        }
+        
+        container.innerHTML = allResults.map(result => `
+            <div class="card">
+                <h3>${result.test}</h3>
+                <p><strong>Курс:</strong> ${result.course}</p>
+                <p><strong>Оценка:</strong> ${result.score}</p>
+                <p><strong>Дата:</strong> ${result.date}</p>
+            </div>
+        `).join('');
+    } catch (error) {
+        container.innerHTML = '<div class="card"><p>Ошибка загрузки результатов</p></div>';
+    }
+}
+
+async function loadProfile() {
+    const container = document.getElementById('profileContent');
+    
+    try {
+        const user = await getUser(state.userId);
+        
+        container.innerHTML = `
+            <div class="card">
+                <h3>Мой профиль</h3>
+                <p><strong>Имя:</strong> ${user.name || 'Не указано'}</p>
+                <p><strong>Email:</strong> ${user.email || 'Не указан'}</p>
+                <p><strong>Роль:</strong> ${user.role || 'student'}</p>
+                <p><strong>ID:</strong> ${user.id}</p>
+                <div class="card-actions">
+                    <button onclick="editProfile()" class="btn-primary">Редактировать профиль</button>
+                </div>
+            </div>
+        `;
+    } catch (error) {
+        container.innerHTML = '<div class="card"><p>Ошибка загрузки профиля</p></div>';
+    }
+}
+
+function editProfile() {
+    const container = document.getElementById('profileContent');
+    container.innerHTML = `
+        <div class="card">
+            <h3>Редактирование профиля</h3>
+            <input type="text" id="editName" placeholder="Имя" value="${state.userData.name || ''}">
+            <input type="email" id="editEmail" placeholder="Email" value="${state.userData.email || ''}">
+            <div class="card-actions">
+                <button onclick="saveProfile()" class="btn-primary">Сохранить</button>
+                <button onclick="loadProfile()" class="btn-secondary">Отмена</button>
+            </div>
+        </div>
+    `;
+}
+
+async function saveProfile() {
+    const name = document.getElementById('editName').value;
+    const email = document.getElementById('editEmail').value;
+    
+    try {
+        await updateUser(state.userId, { name, email });
+        alert('Профиль обновлен');
+        state.userData = await getUser(state.userId);
+        loadProfile();
+    } catch (error) {
+        alert('Ошибка обновления профиля');
+    }
+}
+
+// ========== АДМИН-ПАНЕЛЬ ==========
+async function loadAdminPanel() {
+    const container = document.getElementById('adminContent');
+    container.innerHTML = `
+        <div class="card">
+            <h3>Добро пожаловать в админ-панель</h3>
+            <p>Выберите действие из меню выше</p>
+        </div>
+    `;
+}
+
+async function adminCreateCourse() {
+    document.getElementById('courseNameInput').value = '';
+    document.getElementById('courseDescInput').value = '';
+    document.getElementById('createCourseModal').classList.add('active');
+}
+
+async function adminCreateCourseSubmit() {
+    const name = document.getElementById('courseNameInput').value;
+    const description = document.getElementById('courseDescInput').value;
+    
+    if (!name) {
+        alert('Введите название курса');
+        return;
+    }
+    
+    try {
+        await createCourse({ name, description });
+        alert('Курс создан');
+        hideModal('createCourseModal');
+        loadAllCourses();
+    } catch (error) {
+        alert('Ошибка создания курса');
+    }
+}
+
+async function adminShowUsers() {
+    const container = document.getElementById('adminContent');
+    container.innerHTML = '<div class="loading">Загрузка пользователей...</div>';
+    
+    try {
+        const users = await getAllUsers();
+        
+        container.innerHTML = `
+            <div class="card">
+                <h3>Все пользователи (${users.length})</h3>
+                ${users.map(user => `
+                    <div class="user-item">
+                        <p><strong>${user.name || 'Без имени'}</strong> (${user.email || 'нет email'})</p>
+                        <p>Роль: ${user.role || 'student'} | ID: ${user.id}</p>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+    } catch (error) {
+        container.innerHTML = '<div class="card"><p>Ошибка загрузки пользователей</p></div>';
+    }
+}
+
+async function adminShowQuestions() {
+    const container = document.getElementById('adminContent');
+    container.innerHTML = `
+        <div class="card">
+            <h3>Управление вопросами</h3>
+            <p>Эта функция находится в разработке</p>
+            <p>Доступные API endpoints:</p>
+            <ul>
+                <li>POST /api/question - создать вопрос</li>
+                <li>PATCH /api/question/{id} - обновить вопрос</li>
+                <li>DELETE /api/question/{id} - удалить вопрос</li>
+            </ul>
+        </div>
+    `;
+}
+
+function hideModal(modalId) {
+    document.getElementById(modalId).classList.remove('active');
+}
+
+// ========== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ==========
+async function leaveCourseAction(courseId) {
+    if (confirm('Вы уверены, что хотите отписаться от курса?')) {
+        try {
+            await leaveCourse(courseId, state.userId);
+            alert('Вы отписаны от курса');
+            loadUserCourses();
+        } catch (error) {
+            alert('Ошибка отписки от курса');
+        }
+    }
+}
+
+function generateToken() {
+    return Math.random().toString(36).substring(2) + Date.now().toString(36);
+}
+
+async function logout() {
+    if (confirm('Выйти из системы?')) {
+        try {
+            if (state.refreshToken) {
+                await fetch(`${AUTH_BASE}/auth/logout`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ refreshToken: state.refreshToken })
+                });
+            }
+            
+            if (state.sessionToken) {
+                await apiRequest(`${API_BASE}/session/${state.sessionToken}`, 'DELETE');
+            }
+            
+            localStorage.removeItem(SESSION_KEY);
+            document.cookie = 'session_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+            
+            state = {
+                status: 'unknown',
+                userId: null,
+                accessToken: null,
+                refreshToken: null,
+                sessionToken: null,
+                loginToken: null,
+                userRole: null,
+                currentCourse: null,
+                currentTest: null,
+                testQuestions: [],
+                currentQuestion: 0,
+                answers: {},
+                userData: null
+            };
+            
+            updateStatus('unknown');
+        } catch (error) {
+            console.error('Ошибка выхода:', error);
+        }
+    }
+}
