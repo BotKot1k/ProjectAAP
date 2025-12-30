@@ -4,445 +4,168 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Система тестирования - Студент</title>
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: Arial, sans-serif; background: #f5f5f5; }
-        
-        /* Общие стили */
-        .hidden { display: none !important; }
-        .btn { padding: 10px 15px; border: none; border-radius: 5px; cursor: pointer; }
-        .btn-primary { background: #4361ee; color: white; }
-        .btn-secondary { background: #6c757d; color: white; }
-        .loading { text-align: center; padding: 40px; }
-        
-        /* Страница входа */
-        .login-page { max-width: 400px; margin: 50px auto; padding: 20px; background: white; border-radius: 10px; }
-        .auth-options { margin-top: 20px; }
-        .auth-btn { width: 100%; margin: 10px 0; padding: 12px; }
-        
-        /* Панель студента */
-        .student-panel { display: flex; min-height: 100vh; }
-        .sidebar { width: 250px; background: #2c3e50; color: white; }
-        .sidebar-nav { padding: 20px; }
-        .nav-item { padding: 12px; cursor: pointer; border-radius: 5px; }
-        .nav-item.active { background: #4361ee; }
-        .main-content { flex: 1; padding: 20px; }
-        
-        /* Страницы */
-        .page { display: none; }
-        .page.active { display: block; }
-        
-        /* Курсы */
-        .course-card { background: white; padding: 15px; margin: 10px 0; border-radius: 5px; }
-        .test-card { background: white; padding: 15px; margin: 10px 0; border-radius: 5px; }
-        
-        /* Тестирование */
-        .question { margin: 20px 0; }
-        .options { margin: 15px 0; }
-        .option { padding: 10px; margin: 5px 0; border: 1px solid #ddd; cursor: pointer; }
-        .option.selected { background: #e3f2fd; }
-    </style>
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <!-- Страница входа -->
-    <div id="loginPage" class="login-page">
-        <h2>Вход в систему</h2>
-        <p>Выберите способ входа:</p>
+    <!-- Шапка состояния -->
+    <div id="statusBar">
+        <span id="userStatus">Статус: Неизвестный</span>
+        <span id="userInfo"></span>
+    </div>
+
+    <!-- Состояние 1: Неизвестный -->
+    <div id="stateUnknown" class="state active">
+        <h1>Вход в систему</h1>
         <div class="auth-options">
-            <button class="btn btn-primary auth-btn" data-provider="github">GitHub</button>
-            <button class="btn btn-primary auth-btn" data-provider="yandex">Яндекс</button>
-            <button class="btn btn-primary auth-btn" data-provider="code">По коду</button>
+            <button onclick="startAuth('github')" class="auth-btn github">GitHub</button>
+            <button onclick="startAuth('yandex')" class="auth-btn yandex">Яндекс</button>
+            <button onclick="showCodeModal()" class="auth-btn code">По коду</button>
         </div>
     </div>
-    
-    <!-- Панель студента -->
-    <div id="studentPanel" class="student-panel hidden">
-        <!-- Боковая панель -->
-        <div class="sidebar">
-            <div class="sidebar-nav">
-                <div class="nav-item active" data-page="courses">Мои курсы</div>
-                <div class="nav-item" data-page="tests">Активные тесты</div>
-                <div class="nav-item" data-page="results">Результаты</div>
-                <div class="nav-item" data-page="profile">Профиль</div>
-                <div class="nav-item" id="logoutBtn">Выйти</div>
-            </div>
+
+    <!-- Состояние 2: Анонимный -->
+    <div id="stateAnonymous" class="state">
+        <h2>Ожидание подтверждения...</h2>
+        <div class="auth-waiting">
+            <div class="spinner"></div>
+            <p>Ожидайте подтверждения входа</p>
+            <button onclick="cancelAuth()" class="btn-secondary">Отмена</button>
         </div>
-        
-        <!-- Основной контент -->
-        <div class="main-content">
-            <!-- Страница курсов -->
-            <div id="coursesPage" class="page active">
+    </div>
+
+    <!-- Состояние 3: Авторизованный -->
+    <div id="stateAuthorized" class="state">
+        <!-- Панель навигации -->
+        <div class="nav-panel">
+            <button onclick="showSection('courses')" class="nav-btn active">Мои курсы</button>
+            <button onclick="showSection('allcourses')" class="nav-btn">Все курсы</button>
+            <button onclick="showSection('tests')" class="nav-btn">Активные тесты</button>
+            <button onclick="showSection('results')" class="nav-btn">Результаты</button>
+            <button onclick="showSection('profile')" class="nav-btn">Профиль</button>
+            <button onclick="showSection('admin')" class="nav-btn admin-btn" style="display:none;">Админ-панель</button>
+            <button onclick="logout()" class="nav-btn logout">Выйти</button>
+        </div>
+
+        <!-- Контент -->
+        <div id="content">
+            <!-- Раздел курсов -->
+            <div id="sectionCourses" class="section active">
                 <h2>Мои курсы</h2>
-                <div id="coursesList"></div>
+                <div id="coursesList" class="cards-container">
+                    <div class="loading">Загрузка курсов...</div>
+                </div>
             </div>
-            
-            <!-- Страница тестов -->
-            <div id="testsPage" class="page">
-                <h2>Активные тесты</h2>
-                <div id="testsList"></div>
+
+            <!-- Раздел всех курсов -->
+            <div id="sectionAllcourses" class="section">
+                <h2>Все курсы</h2>
+                <div id="allCoursesList" class="cards-container">
+                    <div class="loading">Загрузка всех курсов...</div>
+                </div>
             </div>
-            
-            <!-- Страница результатов -->
-            <div id="resultsPage" class="page">
+
+            <!-- Раздел тестов -->
+            <div id="sectionTests" class="section">
+                <h2>Тесты</h2>
+                <div id="courseInfo" class="course-header"></div>
+                <div id="testsList" class="cards-container">
+                    <div class="loading">Загрузка тестов...</div>
+                </div>
+            </div>
+
+            <!-- Раздел результатов -->
+            <div id="sectionResults" class="section">
                 <h2>Мои результаты</h2>
-                <div id="resultsList"></div>
+                <div id="resultsList" class="cards-container">
+                    <div class="loading">Загрузка результатов...</div>
+                </div>
             </div>
-            
-            <!-- Страница профиля -->
-            <div id="profilePage" class="page">
+
+            <!-- Раздел профиля -->
+            <div id="sectionProfile" class="section">
                 <h2>Мой профиль</h2>
-                <div id="profileInfo"></div>
+                <div id="profileContent" class="cards-container">
+                    <div class="loading">Загрузка профиля...</div>
+                </div>
             </div>
-            
-            <!-- Страница тестирования -->
-            <div id="testPage" class="page hidden">
-                <h2 id="testTitle"></h2>
-                <div id="questionContainer"></div>
-                <button id="nextBtn" class="btn btn-primary">Далее</button>
-                <button id="submitBtn" class="btn btn-primary hidden">Завершить</button>
+
+            <!-- Раздел админ-панели -->
+            <div id="sectionAdmin" class="section">
+                <h2>Админ-панель</h2>
+                <div class="admin-panel">
+                    <button onclick="adminCreateCourse()" class="btn-primary">Создать курс</button>
+                    <button onclick="adminShowUsers()" class="btn-primary">Управление пользователями</button>
+                    <button onclick="adminShowQuestions()" class="btn-primary">Управление вопросами</button>
+                    <div id="adminContent" class="cards-container">
+                        <div class="loading">Выберите действие</div>
+                    </div>
+                </div>
             </div>
-            
-            <!-- Результат теста -->
-            <div id="resultPage" class="page hidden">
-                <h2>Результат теста</h2>
-                <div id="resultContent"></div>
-                <button id="backBtn" class="btn btn-secondary">Назад</button>
+
+            <!-- Раздел тестирования -->
+            <div id="sectionTest" class="section">
+                <div class="test-header">
+                    <h2 id="testTitle"></h2>
+                    <div class="test-info">
+                        <span id="questionCounter">Вопрос 0/0</span>
+                        <button onclick="finishTest()" class="btn-danger">Завершить</button>
+                    </div>
+                </div>
+                <div id="testContent" class="test-content">
+                    <!-- Вопросы загружаются динамически -->
+                </div>
             </div>
-        </div>
-    </div>
-    
-    <!-- Модальное окно кода -->
-    <div id="codeModal" class="modal hidden" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center;">
-        <div style="background: white; padding: 20px; border-radius: 10px;">
-            <h3>Введите код</h3>
-            <input type="text" id="codeInput" placeholder="6-значный код" style="width: 200px; padding: 10px; margin: 10px 0;">
-            <div>
-                <button id="submitCodeBtn" class="btn btn-primary">Войти</button>
-                <button id="cancelCodeBtn" class="btn btn-secondary">Отмена</button>
+
+            <!-- Раздел результата теста -->
+            <div id="sectionTestResult" class="section">
+                <div class="result-card">
+                    <h2>Тест завершен</h2>
+                    <div id="testResultContent"></div>
+                    <button onclick="backToTests()" class="btn-primary">Вернуться к тестам</button>
+                </div>
             </div>
         </div>
     </div>
 
-    <script>
-        // Конфигурация
-        const API_BASE = 'http://localhost:3000/api';
-        const SESSION_KEY = 'testing_session';
-        
-        // Состояние приложения
-        let state = {
-            user: null,
-            session: null,
-            currentCourse: null,
-            currentTest: null,
-            answers: {},
-            questionIndex: 0
-        };
-        
-        // Инициализация
-        document.addEventListener('DOMContentLoaded', init);
-        
-        async function init() {
-            // Проверяем сессию
-            const session = localStorage.getItem(SESSION_KEY);
-            if (session) {
-                try {
-                    state.session = JSON.parse(session);
-                    if (await checkSession()) {
-                        showStudentPanel();
-                        loadUserData();
-                        return;
-                    }
-                } catch (e) {}
-            }
-            
-            showLoginPage();
-            setupEventListeners();
-        }
-        
-        // Проверка сессии
-        async function checkSession() {
-            // Заглушка - в реальности запрос к серверу
-            return true;
-        }
-        
-        // Показать страницу входа
-        function showLoginPage() {
-            document.getElementById('loginPage').classList.remove('hidden');
-            document.getElementById('studentPanel').classList.add('hidden');
-        }
-        
-        // Показать панель студента
-        function showStudentPanel() {
-            document.getElementById('loginPage').classList.add('hidden');
-            document.getElementById('studentPanel').classList.remove('hidden');
-            showPage('courses');
-        }
-        
-        // Навигация по страницам
-        function showPage(pageName) {
-            // Скрыть все страницы
-            document.querySelectorAll('.page').forEach(p => {
-                p.classList.remove('active');
-                p.classList.add('hidden');
-            });
-            
-            // Показать нужную страницу
-            const page = document.getElementById(pageName + 'Page');
-            if (page) {
-                page.classList.remove('hidden');
-                page.classList.add('active');
-            }
-            
-            // Обновить навигацию
-            document.querySelectorAll('.nav-item').forEach(item => {
-                item.classList.remove('active');
-                if (item.dataset.page === pageName) {
-                    item.classList.add('active');
-                }
-            });
-            
-            // Загрузить данные страницы
-            switch(pageName) {
-                case 'courses': loadCourses(); break;
-                case 'tests': loadTests(); break;
-                case 'results': loadResults(); break;
-                case 'profile': loadProfile(); break;
-            }
-        }
-        
-        // Загрузка курсов
-        async function loadCourses() {
-            const container = document.getElementById('coursesList');
-            container.innerHTML = '<div class="loading">Загрузка...</div>';
-            
-            // Заглушка с тестовыми данными
-            setTimeout(() => {
-                const courses = [
-                    { id: 1, title: 'Программирование', enrolled: true },
-                    { id: 2, title: 'Математика', enrolled: true },
-                    { id: 3, title: 'Физика', enrolled: false }
-                ];
-                
-                container.innerHTML = courses.map(course => `
-                    <div class="course-card">
-                        <h3>${course.title}</h3>
-                        <button onclick="viewCourse(${course.id})" class="btn btn-primary">
-                            ${course.enrolled ? 'Перейти к тестам' : 'Записаться'}
-                        </button>
-                    </div>
-                `).join('');
-            }, 500);
-        }
-        
-        // Просмотр курса
-        function viewCourse(courseId) {
-            state.currentCourse = courseId;
-            loadTests();
-            showPage('tests');
-        }
-        
-        // Загрузка тестов
-        async function loadTests() {
-            const container = document.getElementById('testsList');
-            container.innerHTML = '<div class="loading">Загрузка...</div>';
-            
-            setTimeout(() => {
-                const tests = [
-                    { id: 1, title: 'Тест 1', status: 'active', passed: false },
-                    { id: 2, title: 'Тест 2', status: 'active', passed: true },
-                    { id: 3, title: 'Тест 3', status: 'inactive', passed: false }
-                ];
-                
-                container.innerHTML = tests.map(test => `
-                    <div class="test-card">
-                        <h3>${test.title}</h3>
-                        <p>Статус: ${test.status === 'active' ? 'Активен' : 'Неактивен'}</p>
-                        <button onclick="startTest(${test.id})" class="btn btn-primary" 
-                                ${test.status !== 'active' || test.passed ? 'disabled' : ''}>
-                            ${test.passed ? 'Пройден' : 'Начать тест'}
-                        </button>
-                    </div>
-                `).join('');
-            }, 500);
-        }
-        
-        // Начать тест
-        function startTest(testId) {
-            state.currentTest = testId;
-            state.answers = {};
-            state.questionIndex = 0;
-            
-            // Загрузить вопросы теста
-            loadQuestion();
-            showPage('test');
-        }
-        
-        // Загрузка вопроса
-        async function loadQuestion() {
-            const container = document.getElementById('questionContainer');
-            const questions = [
-                { id: 1, text: 'Что такое переменная?', options: ['Ячейка памяти', 'Функция', 'Класс'] },
-                { id: 2, text: '2 + 2 = ?', options: ['3', '4', '5'] }
-            ];
-            
-            if (state.questionIndex < questions.length) {
-                const q = questions[state.questionIndex];
-                container.innerHTML = `
-                    <div class="question">
-                        <h3>Вопрос ${state.questionIndex + 1}</h3>
-                        <p>${q.text}</p>
-                        <div class="options">
-                            ${q.options.map((opt, i) => `
-                                <div class="option" onclick="selectAnswer(${q.id}, ${i})">
-                                    ${opt}
-                                </div>
-                            `).join('')}
-                        </div>
-                    </div>
-                `;
-                
-                document.getElementById('nextBtn').classList.remove('hidden');
-                document.getElementById('submitBtn').classList.add('hidden');
-            } else {
-                showResult();
-            }
-        }
-        
-        // Выбор ответа
-        function selectAnswer(questionId, answerIndex) {
-            state.answers[questionId] = answerIndex;
-            // Подсветка выбранного варианта
-            document.querySelectorAll('.option').forEach((opt, i) => {
-                opt.classList.toggle('selected', i === answerIndex);
-            });
-        }
-        
-        // Следующий вопрос
-        document.getElementById('nextBtn').onclick = () => {
-            state.questionIndex++;
-            if (state.questionIndex >= 2) { // 2 вопроса для примера
-                document.getElementById('nextBtn').classList.add('hidden');
-                document.getElementById('submitBtn').classList.remove('hidden');
-            }
-            loadQuestion();
-        };
-        
-        // Завершение теста
-        document.getElementById('submitBtn').onclick = () => {
-            showResult();
-        };
-        
-        // Показать результат
-        function showResult() {
-            const score = Object.keys(state.answers).length;
-            document.getElementById('resultContent').innerHTML = `
-                <p>Правильных ответов: ${score} из 2</p>
-                <p>Оценка: ${score >= 2 ? '5' : score >= 1 ? '3' : '2'}</p>
-            `;
-            showPage('result');
-        }
-        
-        // Назад к тестам
-        document.getElementById('backBtn').onclick = () => {
-            showPage('tests');
-        };
-        
-        // Загрузка результатов
-        async function loadResults() {
-            const container = document.getElementById('resultsList');
-            container.innerHTML = '<div class="loading">Загрузка...</div>';
-            
-            setTimeout(() => {
-                const results = [
-                    { test: 'Тест 1', score: '5/5', date: '2023-10-01' },
-                    { test: 'Тест 2', score: '3/5', date: '2023-10-05' }
-                ];
-                
-                container.innerHTML = results.map(r => `
-                    <div class="test-card">
-                        <h3>${r.test}</h3>
-                        <p>Оценка: ${r.score}</p>
-                        <p>Дата: ${r.date}</p>
-                    </div>
-                `).join('');
-            }, 500);
-        }
-        
-        // Загрузка профиля
-        async function loadProfile() {
-            const container = document.getElementById('profileInfo');
-            container.innerHTML = `
-                <div class="course-card">
-                    <p><strong>Имя:</strong> Иван Петров</p>
-                    <p><strong>Группа:</strong> 1 курс</p>
-                    <p><strong>Email:</strong> student@example.com</p>
-                </div>
-            `;
-        }
-        
-        // Обработчики событий
-        function setupEventListeners() {
-            // Кнопки авторизации
-            document.querySelectorAll('.auth-btn').forEach(btn => {
-                btn.addEventListener('click', () => {
-                    const provider = btn.dataset.provider;
-                    if (provider === 'code') {
-                        document.getElementById('codeModal').classList.remove('hidden');
-                    } else {
-                        // Имитация OAuth авторизации
-                        setTimeout(() => {
-                            state.user = { name: 'Студент' };
-                            state.session = { token: 'demo_token' };
-                            localStorage.setItem(SESSION_KEY, JSON.stringify(state.session));
-                            showStudentPanel();
-                        }, 500);
-                    }
-                });
-            });
-            
-            // Навигация
-            document.querySelectorAll('.nav-item').forEach(item => {
-                item.addEventListener('click', () => {
-                    if (item.id === 'logoutBtn') {
-                        logout();
-                    } else {
-                        showPage(item.dataset.page);
-                    }
-                });
-            });
-            
-            // Модальное окно кода
-            document.getElementById('submitCodeBtn').onclick = () => {
-                const code = document.getElementById('codeInput').value;
-                if (code.length === 6) {
-                    // Имитация проверки кода
-                    setTimeout(() => {
-                        state.user = { name: 'Студент' };
-                        state.session = { token: 'code_token' };
-                        localStorage.setItem(SESSION_KEY, JSON.stringify(state.session));
-                        document.getElementById('codeModal').classList.add('hidden');
-                        showStudentPanel();
-                    }, 500);
-                }
-            };
-            
-            document.getElementById('cancelCodeBtn').onclick = () => {
-                document.getElementById('codeModal').classList.add('hidden');
-            };
-        }
-        
-        // Выход из системы
-        function logout() {
-            state.user = null;
-            state.session = null;
-            localStorage.removeItem(SESSION_KEY);
-            showLoginPage();
-        }
-        
-        // Экспорт функций для HTML
-        window.viewCourse = viewCourse;
-        window.startTest = startTest;
-        window.selectAnswer = selectAnswer;
-    </script>
+    <!-- Модальное окно для кода -->
+    <div id="codeModal" class="modal">
+        <div class="modal-content">
+            <h3>Вход по коду</h3>
+            <p>Введите 6-значный код:</p>
+            <input type="text" id="authCode" maxlength="6" placeholder="123456">
+            <div class="modal-buttons">
+                <button onclick="submitCode()" class="btn-primary">Войти</button>
+                <button onclick="hideCodeModal()" class="btn-secondary">Отмена</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно для создания курса -->
+    <div id="createCourseModal" class="modal">
+        <div class="modal-content">
+            <h3>Создать курс</h3>
+            <input type="text" id="courseNameInput" placeholder="Название курса">
+            <textarea id="courseDescInput" placeholder="Описание курса"></textarea>
+            <div class="modal-buttons">
+                <button onclick="adminCreateCourseSubmit()" class="btn-primary">Создать</button>
+                <button onclick="hideModal('createCourseModal')" class="btn-secondary">Отмена</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно для создания теста -->
+    <div id="createTestModal" class="modal">
+        <div class="modal-content">
+            <h3>Создать тест</h3>
+            <input type="hidden" id="createTestCourseId">
+            <input type="text" id="testNameInput" placeholder="Название теста">
+            <div class="modal-buttons">
+                <button onclick="adminCreateTestSubmit()" class="btn-primary">Создать</button>
+                <button onclick="hideModal('createTestModal')" class="btn-secondary">Отмена</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
 </body>
 </html>
