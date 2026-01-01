@@ -14,7 +14,7 @@ public class CourseDTO {
     private String description;
 
     public CourseDTO(Course course) {
-        this.course_id = course.getCourse_id();
+        this.course_id = course.getCourseId();
         this.course_name = course.getCourse_name();
         this.teacher_id = new UsersDTO(course.getTeacher());
         this.description = course.getDescription();

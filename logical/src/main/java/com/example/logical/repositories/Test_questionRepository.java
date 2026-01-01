@@ -13,7 +13,7 @@ import java.util.Optional;
 
 @Repository
 public interface Test_questionRepository extends JpaRepository<Test_question, Long> {
-    @Query(value = "SELECT tq.questionId, q.question_name, q.answer_true, q.question_answer FROM test_question tq JOIN question q ON tq.questionId = q.questionId WHERE tq.test_id = :id", nativeQuery = true)
+    @Query(value = "SELECT tq.question_id, q.question_name, q.answer_true, q.question_answer FROM test_question tq JOIN question q ON tq.question_id = q.question_id WHERE tq.test_id = :id", nativeQuery = true)
     List<Object[]> findAllQuestions(@Param("id") Long test_id);
 
 

@@ -1,8 +1,6 @@
 package com.example.logical.services;
 
-import com.example.logical.dto.Course_testDTO;
 import com.example.logical.dto.TestDTO;
-import com.example.logical.entity.Course_test;
 import com.example.logical.entity.Test;
 import com.example.logical.exception.BadRequestException;
 import com.example.logical.exception.NotFoundException;
@@ -26,7 +24,7 @@ public class Course_testService {
         if(course_id == null){
             throw new BadRequestException("Course id is null");
         }
-        if(!course_testRepository.existsByCourse_CourseId(course_id)){
+        if(!course_testRepository.existsByCourse_courseId(course_id)){
             throw new NotFoundException("Course", course_id);
         }
         return course_testRepository.findAllByTest(course_id);
@@ -37,7 +35,7 @@ public class Course_testService {
         if(course_id == null){
             throw new BadRequestException("Course id is null");
         }
-        if(!course_testRepository.existsByCourse_CourseId(course_id)){
+        if(!course_testRepository.existsByCourse_courseId(course_id)){
             throw new NotFoundException("Course", course_id);
         }
         if(testDTO == null){
@@ -49,5 +47,13 @@ public class Course_testService {
         testRepository.save(test);
         course_testRepository.createCourseTest(course_id, test.getTestId());
         return test.getTestId();
+    }
+
+    @Transactional
+    public void deleteCourseTest(Long current_id, Long course_id, Long test_id){
+        if(course_id == null){
+            throw new BadRequestException("Course id is null");
+        }
+        course_testRepository.deleteСourse_test(course_id, test_id);
     }
 }

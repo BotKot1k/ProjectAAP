@@ -10,6 +10,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
 public class UsersService {
@@ -17,7 +18,7 @@ public class UsersService {
     @Autowired
     private UserRepository userRepository;
 
-    public void createUser(UsersDTO userDTO) {
+    public void createUser(Long current_id, UsersDTO userDTO) {
         if(userRepository.existsById(userDTO.getId())) {
             throw new ConflictException("users","id",userDTO.getId());
         }
@@ -44,8 +45,9 @@ public class UsersService {
         userRepository.deleteById(id);
     }
 
-    public List<Users> getAllUsers(Long current_id) {
-        return userRepository.findAll();
+    public List<UsersDTO> getAllUsers(Long current_id) {
+
+        return userRepository.findAll().stream().map(UsersDTO::new).collect(Collectors.toList());
     }
 
     public UsersDTO findCurrentUser(Long current_id, Long id){

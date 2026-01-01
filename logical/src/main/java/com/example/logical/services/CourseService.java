@@ -1,6 +1,7 @@
 package com.example.logical.services;
 
 import com.example.logical.dto.CourseDTO;
+import com.example.logical.dto.UsersDTO;
 import com.example.logical.entity.Course;
 import com.example.logical.entity.Users;
 import com.example.logical.exception.BadRequestException;
@@ -13,6 +14,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 public class CourseService {
@@ -28,8 +30,8 @@ public class CourseService {
         return new CourseDTO(course);
     }
 
-    public List<Course> getAllCourses() {
-        return courseRepository.findAllCourses();
+    public List<CourseDTO> getAllCourses(Long current_id) {
+        return courseRepository.findAllCourses().stream().map(CourseDTO::new).collect(Collectors.toList());
     }
 
     public void updateDescription(Long current_id,Long course_id, String description) {
@@ -53,7 +55,7 @@ public class CourseService {
         courseRepository.deleteCourse(course_id);
     }
 
-    public void createCourse(CourseDTO courseDTO) {
+    public void createCourse(Long current_id, CourseDTO courseDTO) {
         if(courseDTO == null){
             throw new BadRequestException("CourseDTO is null");
         }

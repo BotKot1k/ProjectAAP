@@ -57,24 +57,21 @@ public class Test_questionService {
         test_questionRepository.deleteQuestion(question_id, test_id);
     }
 
-    public void changeQuestionNumber(Long current_id, Test_questionDTO test_questionDTO) {
-        if(!test_questionRepository.existsByTest_TestId(test_questionDTO.getTest().getTest_id())){
-            throw new NotFoundException("Test", test_questionDTO.getTest().getTest_id());
+    public void changeQuestionNumber(Long current_id, Long test_id, Long question_id, Integer new_question_number) {
+        if(!test_questionRepository.existsByTest_TestId(test_id)){
+            throw new NotFoundException("Test", test_id);
         }
-        if(!test_questionRepository.existsByQuestion_QuestionId(test_questionDTO.getQuestion().getQuestion_id())){
-            throw new NotFoundException("Question", test_questionDTO.getQuestion().getQuestion_id());
+        if(!test_questionRepository.existsByQuestion_QuestionId(question_id)){
+            throw new NotFoundException("Question", question_id);
         }
-        if (test_questionDTO.getQuestion_number() > test_questionRepository.getMaxQuestionNumber(test_questionDTO.getTest().getTest_id())) {
-            throw new IllegalArgumentException(
-                    String.format("Question number %d exceeds maximum allowed value %d for test %d",
-                            test_questionDTO.getQuestion_number(), test_questionRepository.getMaxQuestionNumber(test_questionDTO.getTest().getTest_id()))
-            );
+        if (new_question_number > test_questionRepository.getMaxQuestionNumber(test_id)) {
+            throw new BadRequestException("New question number is greater than test question number");
         }
-        if (test_questionDTO.getQuestion_number() < 1){
+        if (new_question_number < 1){
             throw new BadRequestException("Question number must be greater than 0");
         }
 
-        test_questionRepository.updateQuestionNumber(test_questionDTO.getTest().getTest_id(), test_questionDTO.getQuestion_number(), test_questionDTO.getQuestion().getQuestion_id());
-        test_questionRepository.decrementQuestionNumbersAfter(test_questionDTO.getTest().getTest_id(), test_questionDTO.getQuestion_number());
+        test_questionRepository.updateQuestionNumber(test_id, new_question_number, question_id);
+        test_questionRepository.decrementQuestionNumbersAfter(test_id, new_question_number);
     }
 }

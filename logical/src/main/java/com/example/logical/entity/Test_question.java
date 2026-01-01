@@ -19,7 +19,7 @@ public class Test_question {
     private Test test;
 
     @ManyToOne(cascade = CascadeType.ALL)
-    @JoinColumn(name = "questionId")
+    @JoinColumn(name = "question_id")
     private Question question;
 
     private int question_number;

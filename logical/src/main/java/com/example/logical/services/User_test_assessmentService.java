@@ -7,6 +7,7 @@ import com.example.logical.entity.Test;
 import com.example.logical.entity.User_test_assessment;
 import com.example.logical.exception.BadRequestException;
 import com.example.logical.exception.NotFoundException;
+import com.example.logical.repositories.StudentRepository;
 import com.example.logical.repositories.User_test_assessmentRepository;
 import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -19,8 +20,11 @@ public class User_test_assessmentService {
     @Autowired
     User_test_assessmentRepository user_test_assessmentRepository;
 
+    @Autowired
+    StudentRepository studentRepository;
+
     public List<Object[]> getUserAssessment(Long current_id, Long course_id, Long test_id, Long user_id){
-        if(!user_test_assessmentRepository.existsByUser_UserId(user_id)){
+        if(!studentRepository.existsByUser_UserId(user_id)){
             throw new NotFoundException("user", user_id);
         }
         if(!user_test_assessmentRepository.existsByTest_TestId(test_id)){
@@ -47,7 +51,7 @@ public class User_test_assessmentService {
         if(!user_test_assessmentRepository.existsByTest_TestId(test_id)){
             throw new NotFoundException("test", test_id);
         }
-        if(!user_test_assessmentRepository.existsByUser_UserId(user_id)){
+        if(!studentRepository.existsByUser_UserId(user_id)){
             throw new NotFoundException("user", user_id);
         }
         return user_test_assessmentRepository.findQuestionNamesWithUserAnswers(test_id, user_id);

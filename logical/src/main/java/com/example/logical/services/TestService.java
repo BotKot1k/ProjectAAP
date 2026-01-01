@@ -14,7 +14,7 @@ public class TestService {
 
     @Transactional
     public void deleteTestById(Long current_id, Long test_id) {
-        if(!testRepository.existsByTest_TestId(test_id)) {
+        if(!testRepository.existsById(test_id)) {
             throw new NotFoundException("Test", test_id);
         }
         testRepository.deleteById(test_id);

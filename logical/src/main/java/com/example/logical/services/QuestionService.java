@@ -14,8 +14,8 @@ public class QuestionService {
     @Autowired
     private QuestionRepository questionRepository;
 
-    void changeQuestionName(Long current_id, String new_question_name, Long question_id) {
-        if(new_question_name == null || new_question_name == ""){
+    public void changeQuestionName(Long current_id, String new_question_name, Long question_id) {
+        if(new_question_name == null || new_question_name.equals("")){
             throw new BadRequestException("Question name can't be empty");
         }
         if(question_id == null || question_id == 0){
@@ -28,7 +28,7 @@ public class QuestionService {
         questionRepository.updateQuestionName(new_question_name, question_id);
     }
 
-    Long newQuestion(Long current_id, QuestionDTO questionDTO) {
+    public Long newQuestion(Long current_id, QuestionDTO questionDTO) {
         if(questionDTO == null){
             throw new BadRequestException("Question can't be empty");
         }
@@ -47,7 +47,7 @@ public class QuestionService {
         return question.getQuestionId();
     }
 
-    void deleteQuestion(Long current_id, Long question_id) {
+    public void deleteQuestion(Long current_id, Long question_id) {
         if(!questionRepository.existsById(question_id)) {
             throw new NotFoundException("question", question_id);
         }

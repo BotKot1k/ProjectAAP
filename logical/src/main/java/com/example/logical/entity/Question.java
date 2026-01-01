@@ -18,6 +18,7 @@ public class Question {
     @Id
     @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "question_seq")
     @SequenceGenerator(name = "question_seq", sequenceName = "question_seq", allocationSize = 1)
+    @Column(name = "question_id")
     private Long questionId;
 
     private String question_name;
