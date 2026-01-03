@@ -1,9 +1,7 @@
 package com.example.logical.services;
 
 import com.example.logical.dto.StudentDTO;
-import com.example.logical.entity.Course;
 import com.example.logical.entity.Student;
-import com.example.logical.entity.Users;
 import com.example.logical.exception.BadRequestException;
 import com.example.logical.exception.NotFoundException;
 import com.example.logical.repositories.CourseRepository;
@@ -33,18 +31,18 @@ public class StudentService {
     }
 
     public void createAnyStudent(Long current_id, StudentDTO studentDTO){
-        if(!userRepository.existsById(studentDTO.getUser().getId())){
-            throw new NotFoundException("user", studentDTO.getUser().getId());
+        if(!userRepository.existsById(studentDTO.getUser_id())){
+            throw new NotFoundException("user", studentDTO.getUser_id());
         }
-        if(!courseRepository.existsById(studentDTO.getCourse().getCourse_id())){
-            throw new NotFoundException("course", studentDTO.getCourse().getCourse_id());
+        if(!courseRepository.existsById(studentDTO.getCourse_id())){
+            throw new NotFoundException("course", studentDTO.getCourse_id());
         }
         if(studentDTO == null){
             throw new BadRequestException("studentDTO cannot be null");
         }
         Student student = new Student();
-        student.setUser(new Users(studentDTO.getUser()));
-        student.setCourse(new Course(studentDTO.getCourse()));
+        student.setUser(userRepository.findByUserIdNotOptional(studentDTO.getUser_id()));
+        student.setCourse(courseRepository.findByCourseIdNoOptional(studentDTO.getCourse_id()));
         studentRepository.save(student);
     }
 

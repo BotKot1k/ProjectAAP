@@ -33,7 +33,7 @@ public class Test_questionController {
     }
 
     @PatchMapping("/test/{test_id}/question/{question_id}")
-    public void changeQuestionNumber(@PathVariable Long test_id, @PathVariable Long question_id, @RequestParam Long current_id, @RequestParam Integer new_question_number){
+    public void changeQuestionNumber(@PathVariable Long test_id, @PathVariable Long question_id, @RequestParam Long current_id, @RequestBody Integer new_question_number){
         test_questionService.changeQuestionNumber(current_id, test_id, question_id, new_question_number);
     }
 

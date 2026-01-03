@@ -7,7 +7,7 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 public class Test_questionDTO {
     private Long id;
-    private QuestionDTO question;
-    private TestDTO test;
+    private Long question_id;
+    private Long test_id;
     private int question_number;
 }

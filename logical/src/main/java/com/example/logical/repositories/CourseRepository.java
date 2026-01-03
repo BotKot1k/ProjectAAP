@@ -14,8 +14,11 @@ import java.util.Optional;
 @Repository
 public interface CourseRepository extends JpaRepository<Course, Long> {
 
-    @Query(value = "SELECT * FROM course WHERE course_id = ?1", nativeQuery = true)
-    Optional<Course> findByCourseId(Long course_id);
+    @Query(value = "SELECT * FROM course WHERE course_id = :course_id", nativeQuery = true)
+    Optional<Course> findByCourseId(@Param("course_id") Long course_id);
+
+    @Query(value = "SELECT * FROM course WHERE course_id = :course_id", nativeQuery = true)
+    Course findByCourseIdNoOptional(@Param("course_id") Long course_id);
 
     @Query(value = "SELECT * FROM course", nativeQuery = true)
     List<Course> findAllCourses();

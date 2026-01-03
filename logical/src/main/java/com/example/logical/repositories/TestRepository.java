@@ -15,5 +15,8 @@ public interface TestRepository extends JpaRepository<Test, Long> {
     @Query(value = "INSERT INTO test (test_name) VALUES (:test_name)", nativeQuery = true)
     void createTest(@Param("test_name") String test_name);
 
+    @Query(value = "SELECT * FROM test WHERE test_id = :test_id")
+    Test findTestByIdNoOptional(@Param("test_id") Long test_id);
+
     boolean existsById(Long testId);
 }

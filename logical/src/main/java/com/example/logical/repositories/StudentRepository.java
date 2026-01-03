@@ -22,6 +22,9 @@ public interface StudentRepository extends JpaRepository<Student, Long> {
     @Query(value = "SELECT s.course_id, c.course_name FROM student s JOIN course c ON s.course_id = c.course_id WHERE user_id = :user_id", nativeQuery = true)
     List<Object[]> findAllUserCourses(@Param("user_id") Long user_id);
 
+    @Query(value = "SELECT * FROM student WHERE user_id = :user_id", nativeQuery = true)
+    Student findStudentById(@Param("user_id") Long user_id);
+
     @Modifying
     @Transactional
     @Query(value = "DELETE FROM student WHERE user_id = :user_id AND course_id = :course_id", nativeQuery = true)
@@ -29,4 +32,6 @@ public interface StudentRepository extends JpaRepository<Student, Long> {
 
     boolean existsByCourse_CourseId(Long course_id);
     boolean existsByUser_UserId(Long userId);
+
+
 }

@@ -25,7 +25,7 @@ public class CourseController {
     }
 
     @PatchMapping("/course/{course_id}")
-    public void updateDescription(@PathVariable Long course_id, @RequestParam Long current_id, @RequestParam String description) {
+    public void updateDescription(@PathVariable Long course_id, @RequestParam Long current_id, @RequestBody String description) {
         courseService.updateDescription(current_id, course_id, description);
     }
 

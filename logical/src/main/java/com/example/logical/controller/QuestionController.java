@@ -14,7 +14,7 @@ public class QuestionController {
     private QuestionService questionService;
 
     @PatchMapping("/{question_id}")
-    public void changeQuestionName(@PathVariable Long question_id, @RequestParam String new_question_name, @RequestParam Long current_id){
+    public void changeQuestionName(@PathVariable Long question_id, @RequestBody String new_question_name, @RequestParam Long current_id){
         questionService.changeQuestionName(current_id, new_question_name, question_id);
     }
 

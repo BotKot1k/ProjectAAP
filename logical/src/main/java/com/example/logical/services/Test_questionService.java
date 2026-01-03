@@ -6,6 +6,8 @@ import com.example.logical.entity.Test;
 import com.example.logical.entity.Test_question;
 import com.example.logical.exception.BadRequestException;
 import com.example.logical.exception.NotFoundException;
+import com.example.logical.repositories.QuestionRepository;
+import com.example.logical.repositories.TestRepository;
 import com.example.logical.repositories.Test_questionRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -16,6 +18,12 @@ import java.util.List;
 public class Test_questionService {
     @Autowired
     private Test_questionRepository test_questionRepository;
+
+    @Autowired
+    private TestRepository testRepository;
+
+    @Autowired
+    private QuestionRepository questionRepository;
 
     public List<Object[]>  findAllQuestions(Long current_id, Long test_id) {
         if(!test_questionRepository.existsByTest_TestId(test_id)){
@@ -28,6 +36,13 @@ public class Test_questionService {
         if(test_questionDTO == null){
             throw new BadRequestException("Test_questionDTO is null");
         }
+        if(!testRepository.existsById(test_questionDTO.getTest_id())){
+            throw new NotFoundException("Test_question ", test_questionDTO.getTest_id());
+        }
+        if(!questionRepository.existsById(test_questionDTO.getQuestion_id())){
+            throw new NotFoundException("question ", test_questionDTO.getQuestion_id());
+        }
+
         Test_question test_question;
         if(test_questionDTO.getId() != null){
             test_question = test_questionRepository.findById(test_questionDTO.getId())
@@ -37,8 +52,8 @@ public class Test_questionService {
             test_question = new Test_question();  // Создаем новый
         }
         test_question.setQuestion_number(test_questionDTO.getQuestion_number());
-        test_question.setTest(new Test(test_questionDTO.getTest()));
-        test_question.setQuestion(new Question(test_questionDTO.getQuestion()));
+        test_question.setTest(testRepository.findTestByIdNoOptional(test_questionDTO.getTest_id()));
+        test_question.setQuestion(questionRepository.findQuestionByIdNoOptional(test_questionDTO.getQuestion_id()));
         test_questionRepository.save(test_question);
     }
 

@@ -1,13 +1,10 @@
 package com.example.logical.services;
 
 import com.example.logical.dto.CourseDTO;
-import com.example.logical.dto.UsersDTO;
 import com.example.logical.entity.Course;
-import com.example.logical.entity.Users;
 import com.example.logical.exception.BadRequestException;
 import com.example.logical.exception.NotFoundException;
 import com.example.logical.repositories.CourseRepository;
-import com.example.logical.repositories.StudentRepository;
 import com.example.logical.repositories.UserRepository;
 import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -60,13 +57,13 @@ public class CourseService {
             throw new BadRequestException("CourseDTO is null");
         }
 
-        if(!userRepository.existsById(courseDTO.getTeacher_id().getId())){
-            throw new NotFoundException("Teacher", courseDTO.getTeacher_id().getId());
+        if(!userRepository.existsById(courseDTO.getTeacher_id())){
+            throw new NotFoundException("Teacher", courseDTO.getTeacher_id());
         }
         Course course = new Course();
 
         course.setCourse_name(courseDTO.getCourse_name());
-        course.setTeacher(new Users(courseDTO.getTeacher_id()));
+        course.setTeacher(userRepository.findByUserIdNotOptional(courseDTO.getTeacher_id()));
         course.setDescription(courseDTO.getDescription());
         courseRepository.save(course);
     }

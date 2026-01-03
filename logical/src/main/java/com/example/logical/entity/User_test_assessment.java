@@ -31,4 +31,6 @@ public class User_test_assessment {
     private Integer[] user_answers;
 
     private int try_test;
+
+    private boolean test_is_active;
 }
