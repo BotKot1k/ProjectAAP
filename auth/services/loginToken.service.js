@@ -1,51 +1,49 @@
-const loginTokens = new Map();
+// Универсальный словарь loginToken
+const loginTokens = {};
 
-const LOGIN_TOKEN_TTL = 5 * 60 * 1000; // 5 минут
-
+/**
+ * Создаёт запись loginToken со статусом pending
+ */
 function createLoginToken(token) {
-  loginTokens.set(token, {
+  loginTokens[token] = {
     status: 'pending',
-    expiresAt: Date.now() + LOGIN_TOKEN_TTL
-  });
+    expiresAt: Date.now() + 5 * 60 * 1000, // 5 минут
+    result: null
+  };
 }
 
+/**
+ * Получение информации о токене
+ */
 function getLoginToken(token) {
-  const record = loginTokens.get(token);
-  if (!record) return null;
-
-  //  Истёк срок жизни
-  if (Date.now() > record.expiresAt) {
-    record.status = 'rejected';
-    record.reason = 'expired';
-  }
-
-  return record;
+  return loginTokens[token];
 }
 
-
-function resolveLoginToken(token, data) {
-  const record = loginTokens.get(token);
-  if (!record) return;
-
-  // нельзя завершать истёкший или отклонённый токен
-  if (record.status !== 'pending') return;
-
-  record.status = 'success';
-  record.result = data;
+/**
+ * Разрешение токена с результатом
+ */
+function resolveLoginToken(token, result) {
+  if (!loginTokens[token]) return;
+  loginTokens[token] = {
+    ...loginTokens[token],
+    status: 'success',
+    result
+  };
 }
 
-
+/**
+ * Отклонение токена
+ */
 function rejectLoginToken(token) {
-  const record = loginTokens.get(token);
-  if (!record) return;
-
-  if (record.status !== 'pending') return;
-
-  record.status = 'rejected';
+  if (!loginTokens[token]) return;
+  loginTokens[token] = {
+    ...loginTokens[token],
+    status: 'rejected'
+  };
 }
-
 
 module.exports = {
+  loginTokens,
   createLoginToken,
   getLoginToken,
   resolveLoginToken,
