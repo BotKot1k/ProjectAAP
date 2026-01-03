@@ -1,16 +1,28 @@
 require('dotenv').config();
+
 const express = require('express');
 const mongoose = require('mongoose');
-
-const authRoutes = require('./routes/auth');
-
 const app = express();
 app.use(express.json());
 
-app.use('/api/auth', authRoutes);
+// Проверяем JWT_SECRET сразу
+if (!process.env.JWT_SECRET) {
+  console.error('JWT_SECRET is missing! Set it in your .env file.');
+  process.exit(1); // останавливаем сервер
+}
 
-console.log('MONGO_URI =', process.env.MONGO_URI);
+// Импорт роутов после dotenv
+const emailRoutes = require('./routes/emailAuth');
+const githubRoutes = require('./routes/githubAuth');
+const yandexRoutes = require('./routes/yandexAuth');
+const codeRoutes = require('./routes/codeAuth');
+// Подключаем роуты
+app.use('/auth/code', codeRoutes);
+app.use('/auth/email', emailRoutes);
+app.use('/auth/github', githubRoutes);
+app.use('/auth/yandex', yandexRoutes);
 
+// Подключение к MongoDB и запуск сервера
 mongoose.connect(process.env.MONGO_URI)
   .then(() => {
     console.log('MongoDB connected');

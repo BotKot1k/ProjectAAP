@@ -10,23 +10,40 @@ function createLoginToken(token) {
 }
 
 function getLoginToken(token) {
-  return loginTokens.get(token);
+  const record = loginTokens.get(token);
+  if (!record) return null;
+
+  //  Истёк срок жизни
+  if (Date.now() > record.expiresAt) {
+    record.status = 'rejected';
+    record.reason = 'expired';
+  }
+
+  return record;
 }
+
 
 function resolveLoginToken(token, data) {
   const record = loginTokens.get(token);
   if (!record) return;
 
+  // нельзя завершать истёкший или отклонённый токен
+  if (record.status !== 'pending') return;
+
   record.status = 'success';
   record.result = data;
 }
+
 
 function rejectLoginToken(token) {
   const record = loginTokens.get(token);
   if (!record) return;
 
+  if (record.status !== 'pending') return;
+
   record.status = 'rejected';
 }
+
 
 module.exports = {
   createLoginToken,
