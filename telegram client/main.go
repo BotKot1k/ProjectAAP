@@ -80,9 +80,32 @@ func main() {
 				} else {
 					bot.Send(tgbotapi.NewMessage(chatID, "Ваш токен: "+token))
 				}
+			
+			case "/users": 
+				bot.Send(tgbotapi.NewMessage(chatID, "Список пользователей: user1, user2, user3")) 
+			
+			case "/courses": 
+				bot.Send(tgbotapi.NewMessage(chatID, "Список курсов: course1, course2")) 
+				
+			case "/tests": 
+				bot.Send(tgbotapi.NewMessage(chatID, "Список тестов: test1, test2")) 
+				
+			case "/questions": 
+				bot.Send(tgbotapi.NewMessage(chatID, "Список вопросов: question1, question2")) 
+				
+			case "/goat": 
+				bot.Send(tgbotapi.NewMessage(chatID, "привет ты коза🐐")) 
+				
+			case "/help": 
+				bot.Send(tgbotapi.NewMessage(chatID, "Доступные команды:\n" + 
+				"/login — авторизация\n" + "/logout — выход\n" + 
+				"/check — проверить токен\n" + "/users — список пользователей\n" +
+				"/courses — список курсов\n" + "/tests — список тестов\n" + 
+				"/questions — список вопросов\n"))
+			
+			case "/start": 
+				bot.Send(tgbotapi.NewMessage(chatID, "Привет! Я бот 🤖. Используй /help для списка команд."))
 
-			case "/start":
-				bot.Send(tgbotapi.NewMessage(chatID, "Привет! Ты коза🐐"))
 
 			default:
 				bot.Send(tgbotapi.NewMessage(chatID, "Нет такой команды "))
@@ -91,3 +114,4 @@ func main() {
 		}
 	}
 }
+
