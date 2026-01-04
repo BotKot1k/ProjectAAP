@@ -1,32 +1,41 @@
 require('dotenv').config();
 const mongoose = require('mongoose');
 const User = require('../models/User');
-const { getPermissionsByRole } = require('../services/permissions.service');
 
 async function createAdmin() {
-  await mongoose.connect(process.env.MONGO_URI);
+  try {
+    await mongoose.connect(process.env.MONGO_URI);
 
-  const email = 'admin@project.local';
+    const email = 'admin@project.local';
 
-  let user = await User.findOne({ email });
+    let user = await User.findOne({ email });
 
-  if (user) {
-    console.log('Админ уже существует');
+    if (user) {
+      // если пользователь есть, но не админ — исправляем
+      if (!user.roles.includes('admin')) {
+        user.roles.push('admin');
+        await user.save();
+        console.log('Роль admin добавлена существующему пользователю');
+      } else {
+        console.log('Администратор уже существует');
+      }
+      process.exit(0);
+    }
+
+    await User.create({
+      email,
+      name: 'Administrator',
+      roles: ['admin'],
+      isEmailVerified: true
+    });
+
+    console.log('Администратор успешно создан');
     process.exit(0);
+  } catch (err) {
+    console.error('Ошибка при создании администратора:', err);
+    process.exit(1);
   }
-
-  const role = 'admin';
-  const permissions = getPermissionsByRole(role);
-
-  await User.create({
-    email,
-    role,
-    permissions,
-    refreshTokens: []
-  });
-
-  console.log('Админ успешно создан');
-  process.exit(0);
 }
 
 createAdmin();
+

@@ -1,26 +1,32 @@
 const jwt = require('jsonwebtoken');
 const RefreshToken = require('../models/RefreshToken');
 
-function createAccessToken(user) {
-  if (!process.env.JWT_SECRET) throw new Error('JWT_SECRET is missing!');
+function createAccessToken(payload, options = {}) {
+  if (!process.env.JWT_SECRET) {
+    throw new Error('JWT_SECRET is missing!');
+  }
+
   return jwt.sign(
-    {
-      id: user._id,
-      email: user.email,
-      role: user.role,
-      permissions: user.permissions
-    },
+    payload,
     process.env.JWT_SECRET,
-    { expiresIn: '15m' }
+    {
+      expiresIn: options.expiresIn || '15m'
+    }
   );
 }
 
-async function createRefreshToken(user) {
-  if (!process.env.JWT_SECRET) throw new Error('JWT_SECRET is missing!');
-  
-  const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
+async function createRefreshToken(user, options = {}) {
+  if (!process.env.JWT_SECRET) {
+    throw new Error('JWT_SECRET is missing!');
+  }
 
-  // Сохраняем токен в базe
+  const expiresIn = options.expiresIn || '7d';
+
+  const token = jwt.sign(
+    { id: user._id, email: user.email },
+    process.env.JWT_SECRET,
+    { expiresIn }
+  );
 
   await RefreshToken.create({
     userId: user._id,

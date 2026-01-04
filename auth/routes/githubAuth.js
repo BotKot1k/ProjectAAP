@@ -1,14 +1,25 @@
 const express = require('express');
 const router = express.Router();
-const { createLoginToken, getLoginToken, resolveLoginToken, rejectLoginToken } = require('../services/loginToken.service');
-const { getGithubAuthUrl, handleGithubCallback } = require('../services/oauth-github.service');
+
+const {
+  createLoginToken,
+  getLoginToken,
+  resolveLoginToken,
+  rejectLoginToken
+} = require('../services/loginToken.service');
+
+const { getGithubAuthUrl, getGithubUser } = require('../services/oauth-github.service');
+const { createAccessToken, createRefreshToken } = require('../services/token.service');
+const { getPermissionsByRoles } = require('../services/permissions.service');
+const User = require('../models/User');
 
 router.post('/start', (req, res) => {
   const { loginToken } = req.body;
-  if (!loginToken) return res.status(400).json({ error: 'loginToken required' });
+  if (!loginToken) {
+    return res.status(400).json({ error: 'loginToken required' });
+  }
 
   createLoginToken(loginToken);
-
   res.json({ url: getGithubAuthUrl(loginToken) });
 });
 
@@ -28,29 +39,74 @@ router.get('/callback', async (req, res) => {
   if (error) {
     rejectLoginToken(state);
     return res.send(`
-      <html>
-        <body>
-          <h2>Авторизация отклонена</h2>
-          <p>${error_description || 'Вы отменили вход через GitHub'}</p>
-        </body>
-      </html>
+      <html><body>
+        <h2>Авторизация отклонена</h2>
+        <p>${error_description || 'Вы отменили вход через GitHub'}</p>
+      </body></html>
     `);
   }
 
-  if (!code || !state) return res.status(400).send('Invalid callback data');
+  if (!code || !state) {
+    return res.status(400).send('Invalid callback data');
+  }
 
   try {
-    await handleGithubCallback(code, state);
+    const githubUser = await getGithubUser(code);
+
+    let user = await User.findOne({ githubId: githubUser.id });
+
+    if (!user) {
+      user = await User.create({
+        email: githubUser.email,
+        githubId: githubUser.id,
+        name: githubUser.name || githubUser.login,
+        avatar: githubUser.avatar_url,
+        roles: ['student']
+      });
+    }
+
+    if (user.blocked) {
+      rejectLoginToken(state);
+      return res.sendStatus(418);
+    }
+
+    const permissions = getPermissionsByRoles(user.roles);
+
+    const accessToken = createAccessToken(
+      {
+        id: user._id,
+        email: user.email,
+        roles: user.roles,
+        permissions,
+        blocked: user.blocked
+      },
+      { expiresIn: '15m' }
+    );
+
+    const refreshToken = await createRefreshToken(user, {
+      expiresIn: '7d'
+    });
+
+    resolveLoginToken(state, {
+      accessToken,
+      refreshToken,
+      user: {
+        id: user._id,
+        email: user.email,
+        name: user.name,
+        roles: user.roles
+      }
+    });
+
     res.send(`
-      <html>
-        <body>
-          <h2>Авторизация успешна</h2>
-          <p>Вы можете вернуться в приложение</p>
-        </body>
-      </html>
+      <html><body>
+        <h2>Авторизация успешна</h2>
+        <p>Вы можете вернуться в приложение</p>
+      </body></html>
     `);
   } catch (err) {
     console.error('GitHub callback error:', err);
+    rejectLoginToken(state);
     res.status(500).send('Authorization failed');
   }
 });

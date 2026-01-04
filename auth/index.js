@@ -20,6 +20,10 @@ app.use('/auth/yandex', yandexRoutes);
 app.use('/auth/github', githubRoutes);
 app.use('/auth/code', codeRoutes);
 
+app.use('/users', require('./routes/users'));
+app.use('/courses', require('./routes/courses'));
+app.use('/tests', require('./routes/tests'));
+
 // Проверка работы сервера
 app.get('/', (req, res) => res.send('Authorization server running'));
 

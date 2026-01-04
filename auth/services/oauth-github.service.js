@@ -1,8 +1,4 @@
 const axios = require('axios');
-const User = require('../models/User');
-const { createAccessToken, createRefreshToken } = require('./token.service');
-const { resolveLoginToken } = require('./loginToken.service');
-const { getPermissionsByRole } = require('./permissions.service');
 
 function getGithubAuthUrl(loginToken) {
   const params = new URLSearchParams({
@@ -15,7 +11,7 @@ function getGithubAuthUrl(loginToken) {
   return `https://github.com/login/oauth/authorize?${params.toString()}`;
 }
 
-async function handleGithubCallback(code, loginToken) {
+async function getGithubUser(code) {
   const tokenResponse = await axios.post(
     'https://github.com/login/oauth/access_token',
     {
@@ -27,43 +23,37 @@ async function handleGithubCallback(code, loginToken) {
   );
 
   const githubAccessToken = tokenResponse.data.access_token;
-  if (!githubAccessToken) throw new Error('GitHub access token not received');
+  if (!githubAccessToken) {
+    throw new Error('GitHub access token not received');
+  }
 
-  const emailResponse = await axios.get(
+  const userResponse = await axios.get(
+    'https://api.github.com/user',
+    { headers: { Authorization: `Bearer ${githubAccessToken}` } }
+  );
+
+  const emailsResponse = await axios.get(
     'https://api.github.com/user/emails',
     { headers: { Authorization: `Bearer ${githubAccessToken}` } }
   );
 
-  const primaryEmail = emailResponse.data.find(email => email.primary && email.verified)?.email;
-  if (!primaryEmail) throw new Error('Primary email not found');
+  const primaryEmail = emailsResponse.data.find(
+    e => e.primary && e.verified
+  )?.email;
 
-  let user = await User.findOne({ email: primaryEmail });
-  if (!user) {
-    user = await User.create({
-      email: primaryEmail,
-      name: 'GitHubUser',
-      role: 'student',
-      permissions: []
-    });
+  if (!primaryEmail) {
+    throw new Error('Primary email not found');
   }
 
-  user.permissions = getPermissionsByRole(user.role);
-  await user.save();
-
-  const newAccessToken = createAccessToken(user, { expiresIn: '1m' });
-  const newRefreshToken = await createRefreshToken(user, { expiresIn: '7d' });
-
-  resolveLoginToken(loginToken, {
-    accessToken: newAccessToken,
-    refreshToken: newRefreshToken,
-    user: {
-      id: user._id,
-      email: user.email,
-      name: user.name,
-      role: user.role,
-      permissions: user.permissions
-    }
-  });
+  return {
+    id: userResponse.data.id,
+    email: primaryEmail,
+    name: userResponse.data.name || userResponse.data.login,
+    avatar: userResponse.data.avatar_url
+  };
 }
 
-module.exports = { getGithubAuthUrl, handleGithubCallback };
+module.exports = {
+  getGithubAuthUrl,
+  getGithubUser
+};

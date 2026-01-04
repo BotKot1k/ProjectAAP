@@ -6,38 +6,51 @@ const UserSchema = new mongoose.Schema({
     unique: true,
     required: true
   },
-  role: {
-    type: String,
-    enum: ['student', 'admin'],
-    default: 'student'
-  },
-  permissions: {
+
+  // Пользователь может иметь несколько ролей
+  roles: {
     type: [String],
-    required: true
+    enum: ['student', 'teacher', 'admin'],
+    default: ['student']
   },
-  // Добавленные поля для OAuth авторизации
+
+  // Блокировка пользователя (418 на любой запрос)
+  blocked: {
+    type: Boolean,
+    default: false
+  },
+
+  // OAuth
   yandexId: {
     type: String,
-    sparse: true, // Разрешает null для пользователей без Яндекс авторизации
+    sparse: true,
     unique: true
   },
+
+  githubId: {
+    type: String,
+    sparse: true,
+    unique: true
+  },
+
   name: {
     type: String,
     default: ''
   },
+
   avatar: {
     type: String,
     default: ''
   },
+
   isEmailVerified: {
     type: Boolean,
     default: false
   },
-  // Поле для связи с исходной системой (если нужно)
-  originalUserId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    default: null
+
+  createdAt: {
+    type: Date,
+    default: Date.now
   }
 });
 
