@@ -3,11 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Система тестирования - Студент</title>
+    <title>Система тестирования</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <!-- Шапка состояния -->
+    <!-- Шапка -->
     <div id="statusBar">
         <span id="userStatus">Статус: Неизвестный</span>
         <span id="userInfo"></span>
@@ -16,153 +16,114 @@
     <!-- Состояние 1: Неизвестный -->
     <div id="stateUnknown" class="state active">
         <h1>Вход в систему</h1>
-        <div class="auth-options">
-            <button onclick="startAuth('github')" class="auth-btn github">GitHub</button>
-            <button onclick="startAuth('yandex')" class="auth-btn yandex">Яндекс</button>
-            <button onclick="showCodeModal()" class="auth-btn code">По коду</button>
+        <div>
+            <button onclick="startAuth('github')">GitHub</button>
+            <button onclick="startAuth('yandex')">Яндекс</button>
+            <button onclick="showCodeModal()">По коду</button>
         </div>
     </div>
 
     <!-- Состояние 2: Анонимный -->
     <div id="stateAnonymous" class="state">
         <h2>Ожидание подтверждения...</h2>
-        <div class="auth-waiting">
+        <div>
             <div class="spinner"></div>
             <p>Ожидайте подтверждения входа</p>
-            <button onclick="cancelAuth()" class="btn-secondary">Отмена</button>
+            <button onclick="cancelAuth()">Отмена</button>
         </div>
     </div>
 
     <!-- Состояние 3: Авторизованный -->
     <div id="stateAuthorized" class="state">
-        <!-- Панель навигации -->
-        <div class="nav-panel">
-            <button onclick="showSection('courses')" class="nav-btn active">Мои курсы</button>
-            <button onclick="showSection('allcourses')" class="nav-btn">Все курсы</button>
-            <button onclick="showSection('tests')" class="nav-btn">Активные тесты</button>
-            <button onclick="showSection('results')" class="nav-btn">Результаты</button>
-            <button onclick="showSection('profile')" class="nav-btn">Профиль</button>
-            <button onclick="showSection('admin')" class="nav-btn admin-btn" style="display:none;">Админ-панель</button>
-            <button onclick="logout()" class="nav-btn logout">Выйти</button>
+        <!-- Навигация -->
+        <div class="nav">
+            <button onclick="showSection('courses')" class="active">Мои курсы</button>
+            <button onclick="showSection('allcourses')">Все курсы</button>
+            <button onclick="showSection('tests')">Тесты</button>
+            <button onclick="showSection('results')">Результаты</button>
+            <button onclick="showSection('profile')">Профиль</button>
+            <button onclick="showSection('admin')" style="display:none;">Админ</button>
+            <button onclick="logout()">Выйти</button>
         </div>
 
         <!-- Контент -->
         <div id="content">
-            <!-- Раздел курсов -->
+            <!-- Мои курсы -->
             <div id="sectionCourses" class="section active">
                 <h2>Мои курсы</h2>
-                <div id="coursesList" class="cards-container">
-                    <div class="loading">Загрузка курсов...</div>
-                </div>
+                <div id="coursesList">Загрузка...</div>
             </div>
 
-            <!-- Раздел всех курсов -->
+            <!-- Все курсы -->
             <div id="sectionAllcourses" class="section">
                 <h2>Все курсы</h2>
-                <div id="allCoursesList" class="cards-container">
-                    <div class="loading">Загрузка всех курсов...</div>
-                </div>
+                <div id="allCoursesList">Загрузка...</div>
             </div>
 
-            <!-- Раздел тестов -->
+            <!-- Тесты -->
             <div id="sectionTests" class="section">
                 <h2>Тесты</h2>
-                <div id="courseInfo" class="course-header"></div>
-                <div id="testsList" class="cards-container">
-                    <div class="loading">Загрузка тестов...</div>
-                </div>
+                <div id="courseInfo"></div>
+                <div id="testsList">Загрузка...</div>
             </div>
 
-            <!-- Раздел результатов -->
+            <!-- Результаты -->
             <div id="sectionResults" class="section">
-                <h2>Мои результаты</h2>
-                <div id="resultsList" class="cards-container">
-                    <div class="loading">Загрузка результатов...</div>
-                </div>
+                <h2>Результаты</h2>
+                <div id="resultsList">Загрузка...</div>
             </div>
 
-            <!-- Раздел профиля -->
+            <!-- Профиль -->
             <div id="sectionProfile" class="section">
-                <h2>Мой профиль</h2>
-                <div id="profileContent" class="cards-container">
-                    <div class="loading">Загрузка профиля...</div>
-                </div>
+                <h2>Профиль</h2>
+                <div id="profileContent">Загрузка...</div>
             </div>
 
-            <!-- Раздел админ-панели -->
+            <!-- Админ -->
             <div id="sectionAdmin" class="section">
                 <h2>Админ-панель</h2>
-                <div class="admin-panel">
-                    <button onclick="adminCreateCourse()" class="btn-primary">Создать курс</button>
-                    <button onclick="adminShowUsers()" class="btn-primary">Управление пользователями</button>
-                    <button onclick="adminShowQuestions()" class="btn-primary">Управление вопросами</button>
-                    <div id="adminContent" class="cards-container">
-                        <div class="loading">Выберите действие</div>
-                    </div>
+                <div>
+                    <button onclick="createCourseDialog()">Создать курс</button>
+                    <button onclick="showAllUsers()">Все пользователи</button>
                 </div>
+                <div id="adminContent"></div>
             </div>
 
-            <!-- Раздел тестирования -->
+            <!-- Тест -->
             <div id="sectionTest" class="section">
-                <div class="test-header">
-                    <h2 id="testTitle"></h2>
-                    <div class="test-info">
-                        <span id="questionCounter">Вопрос 0/0</span>
-                        <button onclick="finishTest()" class="btn-danger">Завершить</button>
-                    </div>
-                </div>
-                <div id="testContent" class="test-content">
-                    <!-- Вопросы загружаются динамически -->
-                </div>
+                <h2 id="testTitle">Тест</h2>
+                <div id="questionCounter">Вопрос 0/0</div>
+                <div id="testContent"></div>
+                <button onclick="finishTest()">Завершить тест</button>
             </div>
 
-            <!-- Раздел результата теста -->
+            <!-- Результат теста -->
             <div id="sectionTestResult" class="section">
-                <div class="result-card">
-                    <h2>Тест завершен</h2>
-                    <div id="testResultContent"></div>
-                    <button onclick="backToTests()" class="btn-primary">Вернуться к тестам</button>
-                </div>
+                <h2>Результат теста</h2>
+                <div id="testResultContent"></div>
+                <button onclick="backToTests()">Вернуться к тестам</button>
             </div>
         </div>
     </div>
 
-    <!-- Модальное окно для кода -->
-    <div id="codeModal" class="modal">
-        <div class="modal-content">
+    <!-- Модалка для кода -->
+    <div id="codeModal" class="modal" style="display:none;">
+        <div>
             <h3>Вход по коду</h3>
-            <p>Введите 6-значный код:</p>
             <input type="text" id="authCode" maxlength="6" placeholder="123456">
-            <div class="modal-buttons">
-                <button onclick="submitCode()" class="btn-primary">Войти</button>
-                <button onclick="hideCodeModal()" class="btn-secondary">Отмена</button>
-            </div>
+            <button onclick="submitCode()">Войти</button>
+            <button onclick="hideCodeModal()">Отмена</button>
         </div>
     </div>
 
-    <!-- Модальное окно для создания курса -->
-    <div id="createCourseModal" class="modal">
-        <div class="modal-content">
+    <!-- Модалка создания курса -->
+    <div id="createCourseModal" class="modal" style="display:none;">
+        <div>
             <h3>Создать курс</h3>
-            <input type="text" id="courseNameInput" placeholder="Название курса">
-            <textarea id="courseDescInput" placeholder="Описание курса"></textarea>
-            <div class="modal-buttons">
-                <button onclick="adminCreateCourseSubmit()" class="btn-primary">Создать</button>
-                <button onclick="hideModal('createCourseModal')" class="btn-secondary">Отмена</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Модальное окно для создания теста -->
-    <div id="createTestModal" class="modal">
-        <div class="modal-content">
-            <h3>Создать тест</h3>
-            <input type="hidden" id="createTestCourseId">
-            <input type="text" id="testNameInput" placeholder="Название теста">
-            <div class="modal-buttons">
-                <button onclick="adminCreateTestSubmit()" class="btn-primary">Создать</button>
-                <button onclick="hideModal('createTestModal')" class="btn-secondary">Отмена</button>
-            </div>
+            <input type="text" id="courseName" placeholder="Название">
+            <textarea id="courseDesc" placeholder="Описание"></textarea>
+            <button onclick="createCourse()">Создать</button>
+            <button onclick="hideModal('createCourseModal')">Отмена</button>
         </div>
     </div>
 
