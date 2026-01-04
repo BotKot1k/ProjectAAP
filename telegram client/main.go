@@ -18,7 +18,7 @@ var rdb *redis.Client
 func InitRedis() {
 	rdb = redis.NewClient(&redis.Options{
 		Addr:     "localhost:6379", // если Redis в Docker без пароля
-		Password: "",               // если есть пароль, укажи его здесь
+		Password: "",               // если есть пароль
 		DB:       0,
 	})
 
