@@ -1,0 +1,93 @@
+// ну это для начала чисто
+
+package main
+
+import (
+	"context"
+	"fmt"
+	"log"
+
+	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	"github.com/redis/go-redis/v9"
+)
+
+var ctx = context.Background()
+var rdb *redis.Client
+
+// Инициализация Redis
+func InitRedis() {
+	rdb = redis.NewClient(&redis.Options{
+		Addr:     "localhost:6379", // если Redis в Docker без пароля
+		Password: "",               // если есть пароль, укажи его здесь
+		DB:       0,
+	})
+
+	pong, err := rdb.Ping(ctx).Result()
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println("Redis connected:", pong)
+}
+
+// Сохранение токена
+func SetToken(chatID int64, token string) error {
+	return rdb.Set(ctx, fmt.Sprintf("chat:%d", chatID), token, 0).Err()
+}
+
+// Получение токена
+func GetToken(chatID int64) (string, error) {
+	return rdb.Get(ctx, fmt.Sprintf("chat:%d", chatID)).Result()
+}
+
+// Удаление токена
+func DelToken(chatID int64) error {
+	return rdb.Del(ctx, fmt.Sprintf("chat:%d", chatID)).Err()
+}
+
+func main() {
+	InitRedis() // подключаем Redis
+
+	bot, err := tgbotapi.NewBotAPI("8569049400:AAFQmGvxNsT4GikqgFXgaIfaCu3Pyj0OKFw") // токен от BotFather в кавычках
+	if err != nil {
+		log.Panic(err)
+	}
+
+	bot.Debug = true
+	log.Printf("Authorized on account %s", bot.Self.UserName)
+
+	u := tgbotapi.NewUpdate(0)
+	u.Timeout = 60
+	updates := bot.GetUpdatesChan(u)
+
+	for update := range updates {
+		if update.Message != nil {
+			chatID := update.Message.Chat.ID
+			text := update.Message.Text
+
+			switch text {
+			case "/login":
+				SetToken(chatID, "ACCESS_TOKEN_EXAMPLE")
+				bot.Send(tgbotapi.NewMessage(chatID, "Вы авторизованы ✅"))
+
+			case "/logout":
+				DelToken(chatID)
+				bot.Send(tgbotapi.NewMessage(chatID, "Вы вышли из системы ❌"))
+
+			case "/check":
+				token, err := GetToken(chatID)
+				if err != nil {
+					bot.Send(tgbotapi.NewMessage(chatID, "Нет токена, вы аноним"))
+				} else {
+					bot.Send(tgbotapi.NewMessage(chatID, "Ваш токен: "+token))
+				}
+
+			case "/start":
+				bot.Send(tgbotapi.NewMessage(chatID, "Привет! Ты коза🐐"))
+
+			default:
+				bot.Send(tgbotapi.NewMessage(chatID, "Нет такой команды "))
+			}
+
+		}
+	}
+}
