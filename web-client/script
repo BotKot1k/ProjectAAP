@@ -384,14 +384,14 @@ async function syncUserToDatabase(userData) {
     }
 }
 
-// ========== АВТОРИЗАЦИЯ ЧЕРЕЗ POPUP ==========
+// ========== АВТОРИЗАЦИЯ ЧЕРЕЗ POPUP С POST ЗАПРОСОМ ==========
 async function startAuth(provider) {
     try {
         console.log(`Начинаем авторизацию через ${provider} на сервере ${AUTH_SERVER}`);
         
         if (provider === 'github' || provider === 'yandex') {
-            // Открываем popup окно для авторизации
-            openOAuthPopup(provider);
+            // Открываем popup окно для авторизации с POST запросом
+            await openOAuthPopupWithPost(provider);
             
         } else if (provider === 'code') {
             showCodeModal();
@@ -402,8 +402,8 @@ async function startAuth(provider) {
     }
 }
 
-// Функция для открытия popup окна OAuth
-function openOAuthPopup(provider) {
+// НОВАЯ ФУНКЦИЯ: Открытие OAuth popup с POST запросом
+async function openOAuthPopupWithPost(provider) {
     // Генерируем уникальный state для защиты от CSRF
     const state = generateState();
     sessionStorage.setItem(OAUTH_STATE_KEY, state);
@@ -412,20 +412,58 @@ function openOAuthPopup(provider) {
     const session = localStorage.getItem(SESSION_KEY);
     const loginToken = session ? JSON.parse(session).token : null;
     
-    // Параметры для запроса
-    const params = new URLSearchParams({
+    // Данные для POST запроса
+    const requestData = {
         provider: provider,
         state: state,
-        redirectUri: `${window.location.origin}/oauth-popup.html` // URL popup окна
-    });
+        redirectUri: `${window.location.origin}/oauth-popup.html`
+    };
     
     if (loginToken) {
-        params.append('loginToken', loginToken);
+        requestData.loginToken = loginToken;
     }
     
-    // URL для авторизации
-    const authUrl = `${AUTH_SERVER}/auth/${provider}/start?${params.toString()}`;
+    console.log('Отправка POST запроса на авторизацию:', requestData);
     
+    try {
+        // Отправляем POST запрос на сервер авторизации
+        const response = await fetch(`${AUTH_SERVER}/auth/${provider}/start`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify(requestData)
+        });
+        
+        console.log('Ответ сервера на POST запрос:', response.status);
+        
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error('Ошибка сервера при POST запросе:', errorText);
+            throw new Error(`HTTP ${response.status}: ${errorText}`);
+        }
+        
+        const data = await response.json();
+        console.log('Ответ от сервера авторизации:', data);
+        
+        if (data.url) {
+            // Открываем popup с URL, полученным от сервера
+            openPopupWithUrl(data.url, provider);
+        } else if (data.error) {
+            alert(`Ошибка авторизации: ${data.error}`);
+        } else {
+            throw new Error('Сервер не вернул URL для редиректа');
+        }
+        
+    } catch (error) {
+        console.error('Ошибка при отправке POST запроса:', error);
+        throw error;
+    }
+}
+
+// Функция для открытия popup с URL
+function openPopupWithUrl(url, provider) {
     // Открываем popup окно
     const popupWidth = 600;
     const popupHeight = 700;
@@ -433,15 +471,89 @@ function openOAuthPopup(provider) {
     const top = (window.screen.height - popupHeight) / 2;
     
     const popup = window.open(
-        authUrl,
+        url,
         'OAuthPopup',
-        `width=${popupWidth},height=${popupHeight},left=${left},top=${top},resizable=yes,scrollbars=yes`
+        `width=${popupWidth},height=${popupHeight},left=${left},top=${top},resizable=yes,scrollbars=yes,status=yes`
     );
     
     if (!popup) {
         alert('Пожалуйста, разрешите всплывающие окна для этого сайта');
         return;
     }
+    
+    // Проверяем, закрылось ли окно (опционально)
+    const checkPopup = setInterval(() => {
+        if (popup.closed) {
+            clearInterval(checkPopup);
+            console.log('Popup окно закрыто');
+        }
+    }, 1000);
+}
+
+// Альтернатива: Использование формы для POST запроса
+function openOAuthPopupWithForm(provider) {
+    // Генерируем уникальный state для защиты от CSRF
+    const state = generateState();
+    sessionStorage.setItem(OAUTH_STATE_KEY, state);
+    
+    // Получаем текущий токен сессии (если есть)
+    const session = localStorage.getItem(SESSION_KEY);
+    const loginToken = session ? JSON.parse(session).token : null;
+    
+    // Создаем динамическую форму для отправки POST запроса
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = `${AUTH_SERVER}/auth/${provider}/start`;
+    form.target = 'OAuthPopup'; // Имя popup окна
+    form.style.display = 'none';
+    
+    // Добавляем поля формы
+    const fields = {
+        provider: provider,
+        state: state,
+        redirectUri: `${window.location.origin}/oauth-popup.html`
+    };
+    
+    if (loginToken) {
+        fields.loginToken = loginToken;
+    }
+    
+    // Создаем input элементы для каждого поля
+    Object.entries(fields).forEach(([name, value]) => {
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = name;
+        input.value = value;
+        form.appendChild(input);
+    });
+    
+    // Добавляем форму на страницу
+    document.body.appendChild(form);
+    
+    // Открываем popup окно
+    const popupWidth = 600;
+    const popupHeight = 700;
+    const left = (window.screen.width - popupWidth) / 2;
+    const top = (window.screen.height - popupHeight) / 2;
+    
+    // Открываем пустое окно с нужными параметрами
+    const popup = window.open(
+        '',
+        'OAuthPopup',
+        `width=${popupWidth},height=${popupHeight},left=${left},top=${top},resizable=yes,scrollbars=yes,status=yes`
+    );
+    
+    if (!popup) {
+        alert('Пожалуйста, разрешите всплывающие окна для этого сайта');
+        document.body.removeChild(form);
+        return;
+    }
+    
+    // Отправляем форму
+    form.submit();
+    
+    // Удаляем форму из DOM
+    document.body.removeChild(form);
     
     // Проверяем, закрылось ли окно (опционально)
     const checkPopup = setInterval(() => {
@@ -477,7 +589,7 @@ async function submitCode() {
     }
     
     try {
-        // Отправляем код на сервер
+        // Отправляем код на сервер (POST запрос)
         const response = await fetch(`${API_BASE}/auth/code`, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
@@ -1017,7 +1129,7 @@ function nextQuestion() {
 
 async function finishTest() {
     try {
-        // Отправляем ответы
+        // Отправляем ответы (POST запрос)
         const response = await fetch(`${API_BASE}/test/${state.currentTest}/submit`, {
             method: 'POST',
             headers: {
@@ -1250,7 +1362,7 @@ async function logout() {
     if (!confirm('Выйти из системы?')) return;
     
     try {
-        // Отправляем запрос на сервер авторизации для выхода
+        // Отправляем запрос на сервер авторизации для выхода (POST запрос)
         if (state.token) {
             try {
                 await fetch(`${AUTH_SERVER}/auth/logout`, {
