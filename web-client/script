@@ -13,6 +13,7 @@ let state = {
     status: 'unknown',
     userId: null,
     token: null,
+    refreshToken: null,
     currentCourse: null,
     currentTest: null,
     questions: [],
@@ -24,30 +25,123 @@ let state = {
 document.addEventListener('DOMContentLoaded', init);
 
 async function init() {
-    // Проверяем, не пришли ли мы с OAuth callback
-    await handleAuthCallback();
+    // Проверяем токены в URL (если пришли с редиректа)
+    await handleTokensFromURL();
+    
+    // Инициализируем обработчик сообщений от popup
+    initMessageListener();
     
     checkSession();
     
     // Добавляем обработчики событий
-    document.getElementById('authCode').addEventListener('keypress', (e) => {
+    document.getElementById('authCode')?.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') submitCode();
     });
     
-    document.getElementById('registerEmail').addEventListener('keypress', (e) => {
+    document.getElementById('registerEmail')?.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') submitRegistration();
     });
     
-    document.getElementById('registerPassword').addEventListener('keypress', (e) => {
+    document.getElementById('registerPassword')?.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') submitRegistration();
     });
     
-    document.getElementById('registerName').addEventListener('keypress', (e) => {
+    document.getElementById('registerName')?.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') submitRegistration();
     });
     
     // Инициализируем формы
     initRegistrationForm();
+}
+
+// ========== ОБРАБОТКА ТОКЕНОВ ИЗ URL ==========
+async function handleTokensFromURL() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const accessToken = urlParams.get('accessToken');
+    const refreshToken = urlParams.get('refreshToken');
+    const userId = urlParams.get('userId');
+    
+    // Если есть токены в URL
+    if (accessToken) {
+        console.log('Найдены токены в URL:', { accessToken, refreshToken, userId });
+        
+        // Сохраняем токены
+        localStorage.setItem(SESSION_KEY, JSON.stringify({
+            token: accessToken,
+            refreshToken: refreshToken,
+            userId: userId
+        }));
+        
+        // Обновляем состояние
+        state.token = accessToken;
+        state.refreshToken = refreshToken;
+        state.userId = userId;
+        
+        // Очищаем URL от токенов
+        window.history.replaceState({}, '', window.location.pathname);
+        
+        // Загружаем данные пользователя
+        try {
+            const userData = await getUser(userId);
+            if (userData) {
+                state.status = 'authorized';
+                updateState('authorized');
+                loadUserData();
+                alert(`Добро пожаловать, ${userData.name || userData.email || 'пользователь'}!`);
+            }
+        } catch (error) {
+            console.error('Ошибка загрузки данных пользователя:', error);
+            state.status = 'authorized'; // Все равно считаем авторизованным
+            updateState('authorized');
+        }
+    }
+}
+
+// ========== ОБРАБОТЧИК СООБЩЕНИЙ ОТ POPUP ==========
+function initMessageListener() {
+    window.addEventListener('message', async function(event) {
+        // Проверяем origin для безопасности
+        if (event.origin !== window.location.origin) {
+            console.warn('Получено сообщение из недоверенного источника:', event.origin);
+            return;
+        }
+        
+        const data = event.data;
+        
+        if (data.type === 'oauth_success') {
+            console.log('Получены токены от popup:', data);
+            
+            // Сохраняем токены
+            localStorage.setItem(SESSION_KEY, JSON.stringify({
+                token: data.accessToken,
+                refreshToken: data.refreshToken,
+                userId: data.userId
+            }));
+            
+            // Обновляем состояние
+            state.token = data.accessToken;
+            state.refreshToken = data.refreshToken;
+            state.userId = data.userId;
+            
+            // Загружаем данные пользователя
+            try {
+                const userData = await getUser(data.userId);
+                if (userData) {
+                    state.status = 'authorized';
+                    updateState('authorized');
+                    loadUserData();
+                    alert(`Добро пожаловать, ${userData.name || userData.email || 'пользователь'}!`);
+                }
+            } catch (error) {
+                console.error('Ошибка загрузки данных пользователя:', error);
+                state.status = 'authorized';
+                updateState('authorized');
+            }
+        } else if (data.type === 'oauth_error') {
+            console.error('Ошибка авторизации из popup:', data.error);
+            alert(`Ошибка авторизации: ${data.error}`);
+        }
+    });
 }
 
 // ========== РЕГИСТРАЦИЯ ПОЛЬЗОВАТЕЛЯ ==========
@@ -254,7 +348,7 @@ async function submitRegistration() {
     }
 }
 
-// Синхронизация пользователя с основной БД логического модуля
+// ========== СИНХРОНИЗАЦИЯ С БАЗОЙ ДАННЫХ ==========
 async function syncUserToDatabase(userData) {
     try {
         console.log('Синхронизация пользователя с БД:', userData);
@@ -284,370 +378,20 @@ async function syncUserToDatabase(userData) {
             return result;
         } else {
             console.warn('Не удалось синхронизировать пользователя с БД:', response.status);
-            // Не прерываем работу приложения, если синхронизация не удалась
         }
     } catch (error) {
         console.error('Ошибка синхронизации пользователя с БД:', error);
-        // Не прерываем работу приложения
     }
 }
 
-// ========== ОБРАБОТКА CALLBACK ОТ АВТОРИЗАЦИИ ==========
-async function handleAuthCallback() {
-    const urlParams = new URLSearchParams(window.location.search);
-    const code = urlParams.get('code');
-    const stateParam = urlParams.get('state');
-    const error = urlParams.get('error');
-    
-    // Сохраняем оригинальный URL для очистки
-    const originalUrl = window.location.href;
-    
-    // Если есть ошибка
-    if (error) {
-        console.error('OAuth Error:', error, urlParams.get('error_description'));
-        alert(`Ошибка авторизации: ${error}`);
-        // Очищаем URL от параметров
-        window.history.replaceState({}, document.title, window.location.pathname);
-        return;
-    }
-    
-    // Если есть код авторизации
-    if (code && stateParam) {
-        console.log('OAuth Callback received:', { code, state: stateParam });
-        
-        // Проверяем state для безопасности
-        const savedState = sessionStorage.getItem(OAUTH_STATE_KEY);
-        if (stateParam !== savedState) {
-            console.error('State mismatch! Potential CSRF attack.');
-            alert('Ошибка безопасности авторизации');
-            window.history.replaceState({}, document.title, window.location.pathname);
-            return;
-        }
-        
-        try {
-            // Обмениваем код на токен
-            const tokenResponse = await fetch(`${AUTH_SERVER}/auth/token`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    code: code,
-                    state: stateParam,
-                    redirectUri: window.location.origin + window.location.pathname
-                })
-            });
-            
-            if (!tokenResponse.ok) {
-                throw new Error(`Token exchange failed: ${tokenResponse.status}`);
-            }
-            
-            const tokenData = await tokenResponse.json();
-            console.log('Token exchange successful:', tokenData);
-            
-            // Сохраняем токен
-            state.token = tokenData.access_token;
-            
-            // Получаем данные пользователя с сервера авторизации
-            const userResponse = await fetch(`${AUTH_SERVER}/auth/userinfo`, {
-                headers: {
-                    'Authorization': `Bearer ${tokenData.access_token}`
-                }
-            });
-            
-            if (userResponse.ok) {
-                const userInfo = await userResponse.json();
-                console.log('User info from auth server:', userInfo);
-                
-                // Проверяем, есть ли пользователь в нашей БД
-                let userId = await checkOrCreateUser(userInfo, tokenData.access_token);
-                
-                if (userId) {
-                    // Сохраняем в localStorage
-                    localStorage.setItem(SESSION_KEY, JSON.stringify({
-                        token: tokenData.access_token,
-                        userId: userId
-                    }));
-                    
-                    state.userId = userId;
-                    state.status = 'authorized';
-                    updateState('authorized');
-                    loadUserData();
-                    
-                    // Очищаем URL от параметров OAuth
-                    window.history.replaceState({}, document.title, window.location.pathname);
-                    
-                    // Очищаем сохраненный state
-                    sessionStorage.removeItem(OAUTH_STATE_KEY);
-                    
-                    alert(`Добро пожаловать, ${userInfo.name || userInfo.email}!`);
-                }
-            }
-            
-        } catch (error) {
-            console.error('OAuth callback error:', error);
-            alert('Ошибка завершения авторизации');
-            window.history.replaceState({}, document.title, window.location.pathname);
-        }
-    } else {
-        // Проверяем, нет ли токена в URL (например, после успешной авторизации)
-        const token = urlParams.get('token');
-        const userId = urlParams.get('userId');
-        
-        if (token && userId) {
-            // Сохраняем токен из URL
-            localStorage.setItem(SESSION_KEY, JSON.stringify({
-                token: token,
-                userId: userId
-            }));
-            
-            state.token = token;
-            state.userId = userId;
-            state.status = 'authorized';
-            updateState('authorized');
-            loadUserData();
-            
-            // Очищаем URL
-            window.history.replaceState({}, document.title, window.location.pathname);
-        }
-    }
-}
-
-// ========== РАБОТА С БАЗОЙ ДАННЫХ ==========
-async function checkOrCreateUser(userInfo, accessToken) {
-    try {
-        console.log('Проверка/создание пользователя:', userInfo);
-        
-        // Проверяем, существует ли пользователь в нашей БД
-        const checkResponse = await fetch(`${API_BASE}/auth/check-user`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${accessToken}`
-            },
-            body: JSON.stringify({
-                email: userInfo.email,
-                externalId: userInfo.id || userInfo.sub,
-                provider: userInfo.provider || 'github'
-            })
-        });
-        
-        if (checkResponse.ok) {
-            const data = await checkResponse.json();
-            console.log('User check result:', data);
-            
-            if (data.exists && data.userId) {
-                // Пользователь существует, возвращаем его ID
-                return data.userId;
-            } else if (data.needsRegistration) {
-                // Создаем пользователя в нашей БД через логический модуль
-                const createResponse = await fetch(`${API_BASE}/auth/register-external`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${accessToken}`
-                    },
-                    body: JSON.stringify({
-                        name: userInfo.name || userInfo.login || userInfo.email,
-                        email: userInfo.email,
-                        externalId: userInfo.id || userInfo.sub,
-                        provider: userInfo.provider || 'github',
-                        profileData: {
-                            avatar: userInfo.avatar_url || userInfo.picture,
-                            profileUrl: userInfo.html_url || userInfo.profile,
-                            rawData: userInfo
-                        }
-                    })
-                });
-                
-                if (createResponse.ok) {
-                    const createData = await createResponse.json();
-                    console.log('User created in DB:', createData);
-                    
-                    if (createData.userId) {
-                        return createData.userId;
-                    }
-                }
-            }
-        } else {
-            console.warn('Failed to check user existence, trying direct creation');
-            // Если проверка не удалась, пробуем создать пользователя напрямую
-            return await createUserInDatabase(userInfo, accessToken);
-        }
-        
-        return null;
-    } catch (error) {
-        console.error('Error checking/creating user:', error);
-        return null;
-    }
-}
-
-async function createUserInDatabase(userInfo, accessToken) {
-    try {
-        console.log('Creating user directly in DB:', userInfo);
-        
-        const response = await fetch(`${API_BASE}/users`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${accessToken}`
-            },
-            body: JSON.stringify({
-                name: userInfo.name || userInfo.login || userInfo.email,
-                email: userInfo.email,
-                externalId: userInfo.id || userInfo.sub,
-                provider: userInfo.provider || 'github',
-                authMethod: 'oauth',
-                registrationDate: new Date().toISOString(),
-                profileData: userInfo
-            })
-        });
-        
-        if (response.ok) {
-            const data = await response.json();
-            console.log('User created directly:', data);
-            return data.userId || data.id;
-        }
-    } catch (error) {
-        console.error('Error creating user directly:', error);
-    }
-    return null;
-}
-
-// ========== СЕССИЯ ==========
-function checkSession() {
-    const session = localStorage.getItem(SESSION_KEY);
-    if (!session) return updateState('unknown');
-    
-    try {
-        const data = JSON.parse(session);
-        state.token = data.token;
-        state.userId = data.userId;
-        
-        // Проверяем токен
-        getUser(data.userId).then(user => {
-            state.status = 'authorized';
-            updateState('authorized');
-            loadUserData();
-        }).catch(() => {
-            updateState('unknown');
-        });
-    } catch {
-        updateState('unknown');
-    }
-}
-
-function updateState(newStatus) {
-    state.status = newStatus;
-    document.getElementById('userStatus').textContent = `Статус: ${newStatus === 'unknown' ? 'Неизвестный' : newStatus === 'anonymous' ? 'Анонимный' : 'Авторизованный'}`;
-    
-    // Показать нужное состояние
-    document.querySelectorAll('.state').forEach(el => el.classList.remove('active'));
-    document.getElementById(`state${capitalize(newStatus)}`).classList.add('active');
-    
-    // Обновляем кнопки авторизации в зависимости от статуса
-    updateAuthButtons(newStatus);
-}
-
-function updateAuthButtons(status) {
-    const authButtons = document.getElementById('authButtons');
-    if (!authButtons) return;
-    
-    if (status === 'unknown' || status === 'anonymous') {
-        authButtons.innerHTML = `
-            <button class="btn-auth github" onclick="startAuth('github')">
-                <i class="fab fa-github"></i> Войти через GitHub
-            </button>
-            <button class="btn-auth yandex" onclick="startAuth('yandex')">
-                <i class="fab fa-yandex"></i> Войти через Yandex
-            </button>
-            <button class="btn-auth code" onclick="startAuth('code')">
-                <i class="fas fa-key"></i> Войти по коду
-            </button>
-            <button class="btn-auth register" onclick="showRegistrationModal()">
-                <i class="fas fa-user-plus"></i> Регистрация
-            </button>
-        `;
-    } else if (status === 'authorized') {
-        authButtons.innerHTML = `
-            <button class="btn-auth logout" onclick="logout()">
-                <i class="fas fa-sign-out-alt"></i> Выйти
-            </button>
-        `;
-    }
-}
-
-function capitalize(str) {
-    return str.charAt(0).toUpperCase() + str.slice(1);
-}
-
-// ========== АВТОРИЗАЦИЯ ==========
+// ========== АВТОРИЗАЦИЯ ЧЕРЕЗ POPUP ==========
 async function startAuth(provider) {
     try {
         console.log(`Начинаем авторизацию через ${provider} на сервере ${AUTH_SERVER}`);
         
         if (provider === 'github' || provider === 'yandex') {
-            // Генерируем уникальный state для защиты от CSRF
-            const state = generateState();
-            sessionStorage.setItem(OAUTH_STATE_KEY, state);
-            
-            // Получаем текущий токен сессии (если есть)
-            const session = localStorage.getItem(SESSION_KEY);
-            const loginToken = session ? JSON.parse(session).token : null;
-            
-            console.log('Токен сессии:', loginToken ? 'есть' : 'нет');
-            
-            // Подготовка данных для запроса
-            const requestData = {};
-            
-            // Добавляем loginToken только если он есть
-            if (loginToken) {
-                requestData.loginToken = loginToken;
-            }
-            
-            console.log('Отправляемые данные:', requestData);
-            
-            const response = await fetch(`${AUTH_SERVER}/auth/${provider}/start`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json'
-                },
-                body: JSON.stringify({
-                    provider: provider,
-                    loginToken: loginToken || "testValues",
-                    redirectUri: window.location.origin + window.location.pathname,
-                    state: state
-                }),
-            });
-            
-            console.log('Статус ответа:', response.status);
-            console.log('Заголовки ответа:', [...response.headers.entries()]);
-            
-            if (!response.ok) {
-                const errorText = await response.text();
-                console.error('Ошибка сервера:', response.status, errorText);
-                throw new Error(`HTTP ${response.status}: ${errorText}`);
-            }
-            
-            const data = await response.json();
-            console.log('Ответ сервера:', data);
-            
-            if (data.url) {
-                // Сохраняем state для проверки после редиректа
-                if (data.state) {
-                    sessionStorage.setItem('oauth_state', data.state);
-                }
-                
-                // Перенаправляем на страницу авторизации провайдера
-                window.location.href = data.url;
-            } else if (data.error) {
-                alert(`Ошибка: ${data.error}`);
-            } else {
-                console.warn('Сервер не вернул URL для редиректа, но ответ был успешным:', data);
-                // Возможно, авторизация уже завершена
-                checkAuthCallback();
-            }
+            // Открываем popup окно для авторизации
+            openOAuthPopup(provider);
             
         } else if (provider === 'code') {
             showCodeModal();
@@ -658,11 +402,63 @@ async function startAuth(provider) {
     }
 }
 
+// Функция для открытия popup окна OAuth
+function openOAuthPopup(provider) {
+    // Генерируем уникальный state для защиты от CSRF
+    const state = generateState();
+    sessionStorage.setItem(OAUTH_STATE_KEY, state);
+    
+    // Получаем текущий токен сессии (если есть)
+    const session = localStorage.getItem(SESSION_KEY);
+    const loginToken = session ? JSON.parse(session).token : null;
+    
+    // Параметры для запроса
+    const params = new URLSearchParams({
+        provider: provider,
+        state: state,
+        redirectUri: `${window.location.origin}/oauth-popup.html` // URL popup окна
+    });
+    
+    if (loginToken) {
+        params.append('loginToken', loginToken);
+    }
+    
+    // URL для авторизации
+    const authUrl = `${AUTH_SERVER}/auth/${provider}/start?${params.toString()}`;
+    
+    // Открываем popup окно
+    const popupWidth = 600;
+    const popupHeight = 700;
+    const left = (window.screen.width - popupWidth) / 2;
+    const top = (window.screen.height - popupHeight) / 2;
+    
+    const popup = window.open(
+        authUrl,
+        'OAuthPopup',
+        `width=${popupWidth},height=${popupHeight},left=${left},top=${top},resizable=yes,scrollbars=yes`
+    );
+    
+    if (!popup) {
+        alert('Пожалуйста, разрешите всплывающие окна для этого сайта');
+        return;
+    }
+    
+    // Проверяем, закрылось ли окно (опционально)
+    const checkPopup = setInterval(() => {
+        if (popup.closed) {
+            clearInterval(checkPopup);
+            console.log('Popup окно закрыто');
+        }
+    }, 1000);
+}
+
+// Генерируем state для защиты от CSRF
 function generateState() {
     return Math.random().toString(36).substring(2, 15) + 
            Math.random().toString(36).substring(2, 15);
 }
 
+// ========== КЛАССИЧЕСКАЯ АВТОРИЗАЦИЯ (без popup) ==========
 function showCodeModal() {
     document.getElementById('codeModal').style.display = 'flex';
     document.getElementById('authCode').focus();
@@ -721,6 +517,121 @@ function cancelAuth() {
     updateState('unknown');
 }
 
+// ========== ОБНОВЛЕНИЕ ИНТЕРФЕЙСА ==========
+function updateState(newStatus) {
+    state.status = newStatus;
+    document.getElementById('userStatus').textContent = `Статус: ${newStatus === 'unknown' ? 'Неизвестный' : newStatus === 'anonymous' ? 'Анонимный' : 'Авторизованный'}`;
+    
+    // Показать нужное состояние
+    document.querySelectorAll('.state').forEach(el => el.classList.remove('active'));
+    document.getElementById(`state${capitalize(newStatus)}`).classList.add('active');
+    
+    // Обновляем кнопки авторизации в зависимости от статуса
+    updateAuthButtons(newStatus);
+}
+
+function updateAuthButtons(status) {
+    const authButtons = document.getElementById('authButtons');
+    if (!authButtons) return;
+    
+    if (status === 'unknown' || status === 'anonymous') {
+        authButtons.innerHTML = `
+            <button class="btn-auth github" onclick="startAuth('github')">
+                <i class="fab fa-github"></i> Войти через GitHub
+            </button>
+            <button class="btn-auth yandex" onclick="startAuth('yandex')">
+                <i class="fab fa-yandex"></i> Войти через Yandex
+            </button>
+            <button class="btn-auth code" onclick="startAuth('code')">
+                <i class="fas fa-key"></i> Войти по коду
+            </button>
+            <button class="btn-auth register" onclick="showRegistrationModal()">
+                <i class="fas fa-user-plus"></i> Регистрация
+            </button>
+        `;
+    } else if (status === 'authorized') {
+        authButtons.innerHTML = `
+            <button class="btn-auth logout" onclick="logout()">
+                <i class="fas fa-sign-out-alt"></i> Выйти
+            </button>
+        `;
+    }
+}
+
+function capitalize(str) {
+    return str.charAt(0).toUpperCase() + str.slice(1);
+}
+
+// ========== ОБНОВЛЕНИЕ СЕССИИ ==========
+function checkSession() {
+    const session = localStorage.getItem(SESSION_KEY);
+    if (!session) return updateState('unknown');
+    
+    try {
+        const data = JSON.parse(session);
+        state.token = data.token;
+        state.userId = data.userId;
+        state.refreshToken = data.refreshToken;
+        
+        // Проверяем токен
+        getUser(state.userId).then(user => {
+            state.status = 'authorized';
+            updateState('authorized');
+            loadUserData();
+        }).catch(async () => {
+            // Если токен истек, пробуем обновить
+            if (state.refreshToken) {
+                const refreshed = await refreshAccessToken();
+                if (refreshed) {
+                    state.status = 'authorized';
+                    updateState('authorized');
+                    loadUserData();
+                } else {
+                    updateState('unknown');
+                }
+            } else {
+                updateState('unknown');
+            }
+        });
+    } catch {
+        updateState('unknown');
+    }
+}
+
+// Обновление access token с помощью refresh token
+async function refreshAccessToken() {
+    try {
+        const response = await fetch(`${AUTH_SERVER}/auth/refresh`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                refreshToken: state.refreshToken
+            })
+        });
+        
+        if (response.ok) {
+            const data = await response.json();
+            state.token = data.accessToken;
+            
+            // Обновляем в localStorage
+            const session = JSON.parse(localStorage.getItem(SESSION_KEY));
+            session.token = data.accessToken;
+            if (data.refreshToken) {
+                session.refreshToken = data.refreshToken;
+                state.refreshToken = data.refreshToken;
+            }
+            localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+            
+            return true;
+        }
+    } catch (error) {
+        console.error('Ошибка обновления токена:', error);
+    }
+    return false;
+}
+
 // ========== API ФУНКЦИИ ==========
 
 // Общая функция для API вызовов
@@ -742,14 +653,27 @@ async function apiCall(method, endpoint, data = null) {
     
     try {
         const response = await fetch(url, options);
-        if (!response.ok) {
-            if (response.status === 401) {
-                // Токен истек
+        
+        // Если токен истек, пробуем обновить
+        if (response.status === 401 && state.refreshToken) {
+            const refreshed = await refreshAccessToken();
+            if (refreshed) {
+                // Повторяем запрос с новым токеном
+                options.headers['Authorization'] = `Bearer ${state.token}`;
+                const retryResponse = await fetch(url, options);
+                if (!retryResponse.ok) {
+                    throw new Error(`HTTP ${retryResponse.status}`);
+                }
+                return await retryResponse.json();
+            } else {
                 localStorage.removeItem(SESSION_KEY);
                 updateState('unknown');
                 alert('Сессия истекла. Войдите снова.');
                 return null;
             }
+        }
+        
+        if (!response.ok) {
             throw new Error(`HTTP ${response.status}`);
         }
         return await response.json();
@@ -866,7 +790,7 @@ function showSection(sectionName) {
     document.getElementById(`section${capitalize(sectionName)}`).classList.add('active');
     
     document.querySelectorAll('.nav button').forEach(btn => btn.classList.remove('active'));
-    document.querySelector(`.nav button[onclick*="${sectionName}"]`).classList.add('active');
+    document.querySelector(`.nav button[onclick*="${sectionName}"]`)?.classList.add('active');
     
     switch(sectionName) {
         case 'courses':
@@ -901,6 +825,8 @@ async function loadUserData() {
 
 async function loadUserCourses() {
     const container = document.getElementById('coursesList');
+    if (!container) return;
+    
     container.innerHTML = 'Загрузка...';
     
     try {
@@ -945,6 +871,8 @@ async function viewCourse(courseId) {
 
 async function loadCourseTests(courseId) {
     const container = document.getElementById('testsList');
+    if (!container) return;
+    
     container.innerHTML = 'Загрузка...';
     
     try {
@@ -970,6 +898,8 @@ async function loadCourseTests(courseId) {
 
 async function loadAllCourses() {
     const container = document.getElementById('allCoursesList');
+    if (!container) return;
+    
     container.innerHTML = 'Загрузка...';
     
     try {
@@ -1038,6 +968,9 @@ async function startTest(courseId, testId) {
 }
 
 function loadQuestion() {
+    const testContent = document.getElementById('testContent');
+    if (!testContent) return;
+    
     if (state.currentQuestion >= state.questions.length) {
         finishTest();
         return;
@@ -1047,7 +980,7 @@ function loadQuestion() {
     document.getElementById('questionCounter').textContent = 
         `Вопрос ${state.currentQuestion + 1}/${state.questions.length}`;
     
-    document.getElementById('testContent').innerHTML = `
+    testContent.innerHTML = `
         <h3>${question.text}</h3>
         <div>
             ${(question.options || []).map((option, index) => `
@@ -1120,12 +1053,15 @@ async function showTestResults() {
         
         const percentage = Math.round((correct / total) * 100);
         
-        document.getElementById('testResultContent').innerHTML = `
-            <div class="result">
-                <p><strong>Результат:</strong> ${correct} из ${total}</p>
-                <p><strong>Процент:</strong> ${percentage}%</p>
-            </div>
-        `;
+        const testResultContent = document.getElementById('testResultContent');
+        if (testResultContent) {
+            testResultContent.innerHTML = `
+                <div class="result">
+                    <p><strong>Результат:</strong> ${correct} из ${total}</p>
+                    <p><strong>Процент:</strong> ${percentage}%</p>
+                </div>
+            `;
+        }
         
         showSection('testResult');
     } catch (error) {
@@ -1149,6 +1085,8 @@ function backToTests() {
 // ========== РЕЗУЛЬТАТЫ ==========
 async function loadUserResults() {
     const container = document.getElementById('resultsList');
+    if (!container) return;
+    
     container.innerHTML = 'Загрузка...';
     
     try {
@@ -1199,6 +1137,7 @@ async function loadUserResults() {
 // ========== ПРОФИЛЬ ==========
 async function loadProfile() {
     const container = document.getElementById('profileContent');
+    if (!container) return;
     
     try {
         const user = await getUser(state.userId);
@@ -1209,7 +1148,6 @@ async function loadProfile() {
                 <p>Имя: ${user.name || 'Не указано'}</p>
                 <p>Email: ${user.email || 'Не указан'}</p>
                 <p>ID: ${user.id}</p>
-                <p>Дата регистрации: ${new Date(user.createdAt || user.registrationDate).toLocaleDateString()}</p>
                 <button onclick="editProfile()">Редактировать</button>
             </div>
         `;
@@ -1219,7 +1157,10 @@ async function loadProfile() {
 }
 
 function editProfile() {
-    document.getElementById('profileContent').innerHTML = `
+    const container = document.getElementById('profileContent');
+    if (!container) return;
+    
+    container.innerHTML = `
         <div class="card">
             <h3>Редактирование профиля</h3>
             <input type="text" id="editName" placeholder="Имя">
@@ -1238,7 +1179,6 @@ async function saveProfile() {
         await updateUser(state.userId, {name, email});
         alert('Профиль обновлен');
         loadProfile();
-        loadUserData(); // Обновляем информацию в шапке
     } catch (error) {
         alert('Ошибка обновления профиля');
     }
@@ -1247,6 +1187,8 @@ async function saveProfile() {
 // ========== АДМИН-ПАНЕЛЬ ==========
 function loadAdminPanel() {
     const container = document.getElementById('adminContent');
+    if (!container) return;
+    
     container.innerHTML = '<div class="card">Выберите действие</div>';
 }
 
@@ -1277,6 +1219,8 @@ async function createCourse() {
 
 async function showAllUsers() {
     const container = document.getElementById('adminContent');
+    if (!container) return;
+    
     container.innerHTML = 'Загрузка...';
     
     try {
@@ -1286,10 +1230,8 @@ async function showAllUsers() {
             <div class="card">
                 <h3>Все пользователи (${users.length})</h3>
                 ${users.map(user => `
-                    <div class="user-item">
+                    <div>
                         <strong>${user.name || 'Без имени'}</strong> (${user.email || 'нет email'})
-                        <p>ID: ${user.id} | Дата регистрации: ${new Date(user.createdAt).toLocaleDateString()}</p>
-                        <p>Метод авторизации: ${user.authMethod || 'неизвестно'}</p>
                     </div>
                 `).join('')}
             </div>
@@ -1329,6 +1271,7 @@ async function logout() {
             status: 'unknown',
             userId: null,
             token: null,
+            refreshToken: null,
             currentCourse: null,
             currentTest: null,
             questions: [],
@@ -1341,33 +1284,3 @@ async function logout() {
         alert('Ошибка выхода');
     }
 }
-
-// ========== УПРОЩЕННЫЙ HTML ДЛЯ РЕГИСТРАЦИИ ==========
-/*
-<!-- Модальное окно регистрации -->
-<div id="registerModal" class="modal">
-    <div class="modal-content">
-        <span class="close" onclick="hideRegistrationModal()">&times;</span>
-        <h2>Регистрация</h2>
-        <div class="form-group">
-            <input type="text" id="registerName" placeholder="Имя">
-            <div id="registerNameError" class="error-message"></div>
-        </div>
-        <div class="form-group">
-            <input type="email" id="registerEmail" placeholder="Email">
-            <div id="registerEmailError" class="error-message"></div>
-        </div>
-        <div class="form-group">
-            <input type="password" id="registerPassword" placeholder="Пароль">
-            <div id="registerPasswordError" class="error-message"></div>
-        </div>
-        <div class="form-group">
-            <input type="password" id="registerConfirmPassword" placeholder="Подтверждение пароля">
-            <div id="registerConfirmPasswordError" class="error-message"></div>
-        </div>
-        <button onclick="submitRegistration()" style="width: 100%; padding: 10px; background-color: #2196F3; color: white; border: none; border-radius: 4px; cursor: pointer;">
-            Зарегистрироваться
-        </button>
-    </div>
-</div>
-*/
