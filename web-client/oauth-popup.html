@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Авторизация</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            text-align: center;
+        }
+        .loading {
+            font-size: 18px;
+            color: #333;
+            margin-top: 50px;
+        }
+        .success {
+            font-size: 18px;
+            color: green;
+            margin-top: 50px;
+        }
+        .error {
+            font-size: 18px;
+            color: red;
+            margin-top: 50px;
+        }
+    </style>
+</head>
+<body>
+    <div id="status" class="loading">Идет авторизация...</div>
+    
+    <script>
+        // Получаем параметры из URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const accessToken = urlParams.get('accessToken');
+        const refreshToken = urlParams.get('refreshToken');
+        const userId = urlParams.get('userId');
+        const error = urlParams.get('error');
+        
+        const statusEl = document.getElementById('status');
+        
+        if (error) {
+            // Если есть ошибка
+            statusEl.className = 'error';
+            statusEl.textContent = `Ошибка авторизации: ${error}`;
+            
+            if (window.opener) {
+                window.opener.postMessage({
+                    type: 'oauth_error',
+                    error: error
+                }, window.location.origin);
+            }
+            setTimeout(() => window.close(), 3000);
+        } else if (accessToken && window.opener) {
+            // Успешная авторизация
+            statusEl.className = 'success';
+            statusEl.textContent = 'Авторизация успешна! Закрываю окно...';
+            
+            // Передаем токены в основное окно
+            window.opener.postMessage({
+                type: 'oauth_success',
+                accessToken: accessToken,
+                refreshToken: refreshToken,
+                userId: userId
+            }, window.location.origin);
+            
+            // Закрываем popup
+            setTimeout(() => window.close(), 1000);
+        } else {
+            // Если что-то пошло не так
+            statusEl.className = 'error';
+            statusEl.textContent = 'Ошибка: не удалось получить токены авторизации';
+            setTimeout(() => window.close(), 3000);
+        }
+    </script>
+</body>
+</html>
