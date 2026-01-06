@@ -1,11 +1,12 @@
 // Конфигурация - ВАШ СЕРВЕР
 // Сервер авторизации (от одного человека)
-const AUTH_SERVER = 'http://26.111.149.201:4000'; // или другой порт
+let AUTH_SERVER = 'http://localhost:8080'; // или другой порт
 
 // Сервер основной логики (от другого сокомандника)
-const API_SERVER = 'http://26.1.150.131:3415';
+const API_SERVER = 'http://localhost:3415';
 const API_BASE = `${API_SERVER}/api`;
 const SESSION_KEY = 'test_session';
+const OAUTH_STATE_KEY = 'oauth_state';
 
 // Состояние
 let state = {
@@ -22,11 +23,495 @@ let state = {
 // ========== ИНИЦИАЛИЗАЦИЯ ==========
 document.addEventListener('DOMContentLoaded', init);
 
-function init() {
+async function init() {
+    // Проверяем, не пришли ли мы с OAuth callback
+    await handleAuthCallback();
+    
     checkSession();
+    
+    // Добавляем обработчики событий
     document.getElementById('authCode').addEventListener('keypress', (e) => {
         if (e.key === 'Enter') submitCode();
     });
+    
+    document.getElementById('registerEmail').addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') submitRegistration();
+    });
+    
+    document.getElementById('registerPassword').addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') submitRegistration();
+    });
+    
+    document.getElementById('registerName').addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') submitRegistration();
+    });
+    
+    // Инициализируем формы
+    initRegistrationForm();
+}
+
+// ========== РЕГИСТРАЦИЯ ПОЛЬЗОВАТЕЛЯ ==========
+function showRegistrationModal() {
+    document.getElementById('registerModal').style.display = 'flex';
+    document.getElementById('registerName').focus();
+}
+
+function hideRegistrationModal() {
+    document.getElementById('registerModal').style.display = 'none';
+    document.getElementById('registerName').value = '';
+    document.getElementById('registerEmail').value = '';
+    document.getElementById('registerPassword').value = '';
+    document.getElementById('registerConfirmPassword').value = '';
+    clearRegistrationErrors();
+}
+
+function initRegistrationForm() {
+    // Валидация полей в реальном времени
+    const fields = ['registerName', 'registerEmail', 'registerPassword', 'registerConfirmPassword'];
+    fields.forEach(fieldId => {
+        const field = document.getElementById(fieldId);
+        if (field) {
+            field.addEventListener('input', function() {
+                validateRegistrationField(fieldId);
+            });
+        }
+    });
+}
+
+function validateRegistrationField(fieldId) {
+    const field = document.getElementById(fieldId);
+    const errorElement = document.getElementById(fieldId + 'Error');
+    
+    if (!field || !errorElement) return;
+    
+    let isValid = true;
+    let errorMessage = '';
+    
+    switch(fieldId) {
+        case 'registerName':
+            if (field.value.length < 2) {
+                isValid = false;
+                errorMessage = 'Имя должно содержать минимум 2 символа';
+            }
+            break;
+            
+        case 'registerEmail':
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!emailRegex.test(field.value)) {
+                isValid = false;
+                errorMessage = 'Введите корректный email адрес';
+            }
+            break;
+            
+        case 'registerPassword':
+            if (field.value.length < 6) {
+                isValid = false;
+                errorMessage = 'Пароль должен содержать минимум 6 символов';
+            }
+            break;
+            
+        case 'registerConfirmPassword':
+            const password = document.getElementById('registerPassword').value;
+            if (field.value !== password) {
+                isValid = false;
+                errorMessage = 'Пароли не совпадают';
+            }
+            break;
+    }
+    
+    if (isValid) {
+        field.classList.remove('error');
+        errorElement.textContent = '';
+    } else {
+        field.classList.add('error');
+        errorElement.textContent = errorMessage;
+    }
+    
+    return isValid;
+}
+
+function clearRegistrationErrors() {
+    const fields = ['registerName', 'registerEmail', 'registerPassword', 'registerConfirmPassword'];
+    fields.forEach(fieldId => {
+        const field = document.getElementById(fieldId);
+        const errorElement = document.getElementById(fieldId + 'Error');
+        
+        if (field) field.classList.remove('error');
+        if (errorElement) errorElement.textContent = '';
+    });
+}
+
+async function submitRegistration() {
+    // Собираем данные формы
+    const name = document.getElementById('registerName').value.trim();
+    const email = document.getElementById('registerEmail').value.trim().toLowerCase();
+    const password = document.getElementById('registerPassword').value;
+    const confirmPassword = document.getElementById('registerConfirmPassword').value;
+    
+    // Валидация
+    let isValid = true;
+    ['registerName', 'registerEmail', 'registerPassword', 'registerConfirmPassword'].forEach(fieldId => {
+        if (!validateRegistrationField(fieldId)) {
+            isValid = false;
+        }
+    });
+    
+    if (!isValid) {
+        alert('Пожалуйста, исправьте ошибки в форме');
+        return;
+    }
+    
+    if (password !== confirmPassword) {
+        alert('Пароли не совпадают');
+        return;
+    }
+    
+    try {
+        // Показываем индикатор загрузки
+        const submitBtn = document.querySelector('#registerModal button[onclick="submitRegistration()"]');
+        const originalText = submitBtn.textContent;
+        submitBtn.textContent = 'Регистрация...';
+        submitBtn.disabled = true;
+        
+        console.log('Отправка данных регистрации:', { name, email });
+        
+        // Отправляем запрос на регистрацию в логический модуль
+        const response = await fetch(`${API_BASE}/auth/register`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                name: name,
+                email: email,
+                password: password
+            })
+        });
+        
+        console.log('Ответ сервера на регистрацию:', response.status);
+        
+        if (response.ok) {
+            const data = await response.json();
+            console.log('Данные регистрации:', data);
+            
+            if (data.token && data.userId) {
+                // Регистрация успешна, автоматически авторизуем пользователя
+                state.token = data.token;
+                state.userId = data.userId;
+                
+                // Сохраняем в localStorage
+                localStorage.setItem(SESSION_KEY, JSON.stringify({
+                    token: data.token,
+                    userId: data.userId
+                }));
+                
+                // Скрываем модальное окно
+                hideRegistrationModal();
+                
+                // Обновляем состояние
+                state.status = 'authorized';
+                updateState('authorized');
+                loadUserData();
+                
+                // Показываем приветствие
+                alert(`Добро пожаловать, ${name}! Регистрация успешно завершена.`);
+                
+                // Отправляем запрос в логический модуль для добавления пользователя в БД
+                await syncUserToDatabase({
+                    id: data.userId,
+                    name: name,
+                    email: email,
+                    authMethod: 'local',
+                    registrationDate: new Date().toISOString()
+                });
+                
+            } else {
+                alert('Регистрация успешна, но не удалось автоматически войти. Пожалуйста, войдите снова.');
+            }
+        } else {
+            const errorData = await response.json().catch(() => ({ error: 'Ошибка сервера' }));
+            console.error('Ошибка регистрации:', errorData);
+            
+            if (response.status === 409) {
+                alert('Пользователь с таким email уже существует');
+            } else if (response.status === 400) {
+                alert('Некорректные данные: ' + (errorData.message || 'проверьте введенные данные'));
+            } else {
+                alert('Ошибка регистрации: ' + (errorData.message || 'Неизвестная ошибка'));
+            }
+        }
+        
+    } catch (error) {
+        console.error('Ошибка при регистрации:', error);
+        alert('Ошибка сети при регистрации. Проверьте подключение к интернету.');
+    } finally {
+        // Восстанавливаем кнопку
+        const submitBtn = document.querySelector('#registerModal button[onclick="submitRegistration()"]');
+        if (submitBtn) {
+            submitBtn.textContent = originalText || 'Зарегистрироваться';
+            submitBtn.disabled = false;
+        }
+    }
+}
+
+// Синхронизация пользователя с основной БД логического модуля
+async function syncUserToDatabase(userData) {
+    try {
+        console.log('Синхронизация пользователя с БД:', userData);
+        
+        // Отправляем запрос в логический модуль для создания/обновления пользователя
+        const response = await fetch(`${API_BASE}/users/sync`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${state.token}`
+            },
+            body: JSON.stringify({
+                userId: userData.id,
+                name: userData.name,
+                email: userData.email,
+                authMethod: userData.authMethod,
+                externalId: userData.externalId || null,
+                provider: userData.provider || 'local',
+                registrationDate: userData.registrationDate,
+                profileData: userData.profileData || {}
+            })
+        });
+        
+        if (response.ok) {
+            const result = await response.json();
+            console.log('Пользователь синхронизирован с БД:', result);
+            return result;
+        } else {
+            console.warn('Не удалось синхронизировать пользователя с БД:', response.status);
+            // Не прерываем работу приложения, если синхронизация не удалась
+        }
+    } catch (error) {
+        console.error('Ошибка синхронизации пользователя с БД:', error);
+        // Не прерываем работу приложения
+    }
+}
+
+// ========== ОБРАБОТКА CALLBACK ОТ АВТОРИЗАЦИИ ==========
+async function handleAuthCallback() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const code = urlParams.get('code');
+    const stateParam = urlParams.get('state');
+    const error = urlParams.get('error');
+    
+    // Сохраняем оригинальный URL для очистки
+    const originalUrl = window.location.href;
+    
+    // Если есть ошибка
+    if (error) {
+        console.error('OAuth Error:', error, urlParams.get('error_description'));
+        alert(`Ошибка авторизации: ${error}`);
+        // Очищаем URL от параметров
+        window.history.replaceState({}, document.title, window.location.pathname);
+        return;
+    }
+    
+    // Если есть код авторизации
+    if (code && stateParam) {
+        console.log('OAuth Callback received:', { code, state: stateParam });
+        
+        // Проверяем state для безопасности
+        const savedState = sessionStorage.getItem(OAUTH_STATE_KEY);
+        if (stateParam !== savedState) {
+            console.error('State mismatch! Potential CSRF attack.');
+            alert('Ошибка безопасности авторизации');
+            window.history.replaceState({}, document.title, window.location.pathname);
+            return;
+        }
+        
+        try {
+            // Обмениваем код на токен
+            const tokenResponse = await fetch(`${AUTH_SERVER}/auth/token`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    code: code,
+                    state: stateParam,
+                    redirectUri: window.location.origin + window.location.pathname
+                })
+            });
+            
+            if (!tokenResponse.ok) {
+                throw new Error(`Token exchange failed: ${tokenResponse.status}`);
+            }
+            
+            const tokenData = await tokenResponse.json();
+            console.log('Token exchange successful:', tokenData);
+            
+            // Сохраняем токен
+            state.token = tokenData.access_token;
+            
+            // Получаем данные пользователя с сервера авторизации
+            const userResponse = await fetch(`${AUTH_SERVER}/auth/userinfo`, {
+                headers: {
+                    'Authorization': `Bearer ${tokenData.access_token}`
+                }
+            });
+            
+            if (userResponse.ok) {
+                const userInfo = await userResponse.json();
+                console.log('User info from auth server:', userInfo);
+                
+                // Проверяем, есть ли пользователь в нашей БД
+                let userId = await checkOrCreateUser(userInfo, tokenData.access_token);
+                
+                if (userId) {
+                    // Сохраняем в localStorage
+                    localStorage.setItem(SESSION_KEY, JSON.stringify({
+                        token: tokenData.access_token,
+                        userId: userId
+                    }));
+                    
+                    state.userId = userId;
+                    state.status = 'authorized';
+                    updateState('authorized');
+                    loadUserData();
+                    
+                    // Очищаем URL от параметров OAuth
+                    window.history.replaceState({}, document.title, window.location.pathname);
+                    
+                    // Очищаем сохраненный state
+                    sessionStorage.removeItem(OAUTH_STATE_KEY);
+                    
+                    alert(`Добро пожаловать, ${userInfo.name || userInfo.email}!`);
+                }
+            }
+            
+        } catch (error) {
+            console.error('OAuth callback error:', error);
+            alert('Ошибка завершения авторизации');
+            window.history.replaceState({}, document.title, window.location.pathname);
+        }
+    } else {
+        // Проверяем, нет ли токена в URL (например, после успешной авторизации)
+        const token = urlParams.get('token');
+        const userId = urlParams.get('userId');
+        
+        if (token && userId) {
+            // Сохраняем токен из URL
+            localStorage.setItem(SESSION_KEY, JSON.stringify({
+                token: token,
+                userId: userId
+            }));
+            
+            state.token = token;
+            state.userId = userId;
+            state.status = 'authorized';
+            updateState('authorized');
+            loadUserData();
+            
+            // Очищаем URL
+            window.history.replaceState({}, document.title, window.location.pathname);
+        }
+    }
+}
+
+// ========== РАБОТА С БАЗОЙ ДАННЫХ ==========
+async function checkOrCreateUser(userInfo, accessToken) {
+    try {
+        console.log('Проверка/создание пользователя:', userInfo);
+        
+        // Проверяем, существует ли пользователь в нашей БД
+        const checkResponse = await fetch(`${API_BASE}/auth/check-user`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${accessToken}`
+            },
+            body: JSON.stringify({
+                email: userInfo.email,
+                externalId: userInfo.id || userInfo.sub,
+                provider: userInfo.provider || 'github'
+            })
+        });
+        
+        if (checkResponse.ok) {
+            const data = await checkResponse.json();
+            console.log('User check result:', data);
+            
+            if (data.exists && data.userId) {
+                // Пользователь существует, возвращаем его ID
+                return data.userId;
+            } else if (data.needsRegistration) {
+                // Создаем пользователя в нашей БД через логический модуль
+                const createResponse = await fetch(`${API_BASE}/auth/register-external`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${accessToken}`
+                    },
+                    body: JSON.stringify({
+                        name: userInfo.name || userInfo.login || userInfo.email,
+                        email: userInfo.email,
+                        externalId: userInfo.id || userInfo.sub,
+                        provider: userInfo.provider || 'github',
+                        profileData: {
+                            avatar: userInfo.avatar_url || userInfo.picture,
+                            profileUrl: userInfo.html_url || userInfo.profile,
+                            rawData: userInfo
+                        }
+                    })
+                });
+                
+                if (createResponse.ok) {
+                    const createData = await createResponse.json();
+                    console.log('User created in DB:', createData);
+                    
+                    if (createData.userId) {
+                        return createData.userId;
+                    }
+                }
+            }
+        } else {
+            console.warn('Failed to check user existence, trying direct creation');
+            // Если проверка не удалась, пробуем создать пользователя напрямую
+            return await createUserInDatabase(userInfo, accessToken);
+        }
+        
+        return null;
+    } catch (error) {
+        console.error('Error checking/creating user:', error);
+        return null;
+    }
+}
+
+async function createUserInDatabase(userInfo, accessToken) {
+    try {
+        console.log('Creating user directly in DB:', userInfo);
+        
+        const response = await fetch(`${API_BASE}/users`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${accessToken}`
+            },
+            body: JSON.stringify({
+                name: userInfo.name || userInfo.login || userInfo.email,
+                email: userInfo.email,
+                externalId: userInfo.id || userInfo.sub,
+                provider: userInfo.provider || 'github',
+                authMethod: 'oauth',
+                registrationDate: new Date().toISOString(),
+                profileData: userInfo
+            })
+        });
+        
+        if (response.ok) {
+            const data = await response.json();
+            console.log('User created directly:', data);
+            return data.userId || data.id;
+        }
+    } catch (error) {
+        console.error('Error creating user directly:', error);
+    }
+    return null;
 }
 
 // ========== СЕССИЯ ==========
@@ -59,6 +544,37 @@ function updateState(newStatus) {
     // Показать нужное состояние
     document.querySelectorAll('.state').forEach(el => el.classList.remove('active'));
     document.getElementById(`state${capitalize(newStatus)}`).classList.add('active');
+    
+    // Обновляем кнопки авторизации в зависимости от статуса
+    updateAuthButtons(newStatus);
+}
+
+function updateAuthButtons(status) {
+    const authButtons = document.getElementById('authButtons');
+    if (!authButtons) return;
+    
+    if (status === 'unknown' || status === 'anonymous') {
+        authButtons.innerHTML = `
+            <button class="btn-auth github" onclick="startAuth('github')">
+                <i class="fab fa-github"></i> Войти через GitHub
+            </button>
+            <button class="btn-auth yandex" onclick="startAuth('yandex')">
+                <i class="fab fa-yandex"></i> Войти через Yandex
+            </button>
+            <button class="btn-auth code" onclick="startAuth('code')">
+                <i class="fas fa-key"></i> Войти по коду
+            </button>
+            <button class="btn-auth register" onclick="showRegistrationModal()">
+                <i class="fas fa-user-plus"></i> Регистрация
+            </button>
+        `;
+    } else if (status === 'authorized') {
+        authButtons.innerHTML = `
+            <button class="btn-auth logout" onclick="logout()">
+                <i class="fas fa-sign-out-alt"></i> Выйти
+            </button>
+        `;
+    }
 }
 
 function capitalize(str) {
@@ -71,40 +587,66 @@ async function startAuth(provider) {
         console.log(`Начинаем авторизацию через ${provider} на сервере ${AUTH_SERVER}`);
         
         if (provider === 'github' || provider === 'yandex') {
-            // ВАЖНОЕ ИСПРАВЛЕНИЕ: Убрал лишнее поле provider из тела запроса
-            // Получаем токен сессии
-            const loginToken = state.token || 
-                (localStorage.getItem(SESSION_KEY) ? 
-                    JSON.parse(localStorage.getItem(SESSION_KEY)).token : null);
+            // Генерируем уникальный state для защиты от CSRF
+            const state = generateState();
+            sessionStorage.setItem(OAUTH_STATE_KEY, state);
+            
+            // Получаем текущий токен сессии (если есть)
+            const session = localStorage.getItem(SESSION_KEY);
+            const loginToken = session ? JSON.parse(session).token : null;
             
             console.log('Токен сессии:', loginToken ? 'есть' : 'нет');
-        
+            
+            // Подготовка данных для запроса
+            const requestData = {};
+            
+            // Добавляем loginToken только если он есть
+            if (loginToken) {
+                requestData.loginToken = loginToken;
+            }
+            
+            console.log('Отправляемые данные:', requestData);
+            
             const response = await fetch(`${AUTH_SERVER}/auth/${provider}/start`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
+                    'Accept': 'application/json'
                 },
                 body: JSON.stringify({
                     provider: provider,
-                    loginToken:"test"
-                })
+                    loginToken: loginToken || "testValues",
+                    redirectUri: window.location.origin + window.location.pathname,
+                    state: state
+                }),
             });
             
             console.log('Статус ответа:', response.status);
+            console.log('Заголовки ответа:', [...response.headers.entries()]);
             
-            if (response.ok) {
-                const data = await response.json();
-                console.log('Ответ сервера:', data);
-                
-                if (data.url) {
-                    window.location.href = data.url;
-                } else {
-                    alert('Сервер не вернул URL для редиректа');
-                }
-            } else {
+            if (!response.ok) {
                 const errorText = await response.text();
                 console.error('Ошибка сервера:', response.status, errorText);
                 throw new Error(`HTTP ${response.status}: ${errorText}`);
+            }
+            
+            const data = await response.json();
+            console.log('Ответ сервера:', data);
+            
+            if (data.url) {
+                // Сохраняем state для проверки после редиректа
+                if (data.state) {
+                    sessionStorage.setItem('oauth_state', data.state);
+                }
+                
+                // Перенаправляем на страницу авторизации провайдера
+                window.location.href = data.url;
+            } else if (data.error) {
+                alert(`Ошибка: ${data.error}`);
+            } else {
+                console.warn('Сервер не вернул URL для редиректа, но ответ был успешным:', data);
+                // Возможно, авторизация уже завершена
+                checkAuthCallback();
             }
             
         } else if (provider === 'code') {
@@ -112,8 +654,13 @@ async function startAuth(provider) {
         }
     } catch (error) {
         console.error('Полная ошибка авторизации:', error);
-        alert(`Ошибка авторизации: ${error.message}`);
+        alert(`Ошибка авторизации: ${error.message}. Проверьте консоль для деталей.`);
     }
+}
+
+function generateState() {
+    return Math.random().toString(36).substring(2, 15) + 
+           Math.random().toString(36).substring(2, 15);
 }
 
 function showCodeModal() {
@@ -127,8 +674,11 @@ function hideCodeModal() {
 }
 
 async function submitCode() {
-    const code = document.getElementById('authCode').value;
-    if (code.length !== 6) return alert('Введите 6 цифр');
+    const code = document.getElementById('authCode').value.trim();
+    if (code.length !== 6) {
+        alert('Введите 6 цифр');
+        return;
+    }
     
     try {
         // Отправляем код на сервер
@@ -142,6 +692,13 @@ async function submitCode() {
             const data = await response.json();
             state.token = data.token;
             state.userId = data.userId;
+            
+            // Синхронизируем пользователя с БД
+            await syncUserToDatabase({
+                id: data.userId,
+                authMethod: 'code',
+                registrationDate: new Date().toISOString()
+            });
             
             localStorage.setItem(SESSION_KEY, JSON.stringify({
                 token: data.token,
@@ -652,6 +1209,7 @@ async function loadProfile() {
                 <p>Имя: ${user.name || 'Не указано'}</p>
                 <p>Email: ${user.email || 'Не указан'}</p>
                 <p>ID: ${user.id}</p>
+                <p>Дата регистрации: ${new Date(user.createdAt || user.registrationDate).toLocaleDateString()}</p>
                 <button onclick="editProfile()">Редактировать</button>
             </div>
         `;
@@ -680,6 +1238,7 @@ async function saveProfile() {
         await updateUser(state.userId, {name, email});
         alert('Профиль обновлен');
         loadProfile();
+        loadUserData(); // Обновляем информацию в шапке
     } catch (error) {
         alert('Ошибка обновления профиля');
     }
@@ -727,8 +1286,10 @@ async function showAllUsers() {
             <div class="card">
                 <h3>Все пользователи (${users.length})</h3>
                 ${users.map(user => `
-                    <div>
+                    <div class="user-item">
                         <strong>${user.name || 'Без имени'}</strong> (${user.email || 'нет email'})
+                        <p>ID: ${user.id} | Дата регистрации: ${new Date(user.createdAt).toLocaleDateString()}</p>
+                        <p>Метод авторизации: ${user.authMethod || 'неизвестно'}</p>
                     </div>
                 `).join('')}
             </div>
@@ -747,7 +1308,23 @@ async function logout() {
     if (!confirm('Выйти из системы?')) return;
     
     try {
+        // Отправляем запрос на сервер авторизации для выхода
+        if (state.token) {
+            try {
+                await fetch(`${AUTH_SERVER}/auth/logout`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${state.token}`
+                    }
+                });
+            } catch (error) {
+                console.warn('Failed to notify auth server about logout:', error);
+            }
+        }
+        
         localStorage.removeItem(SESSION_KEY);
+        sessionStorage.removeItem(OAUTH_STATE_KEY);
+        
         state = {
             status: 'unknown',
             userId: null,
@@ -764,3 +1341,33 @@ async function logout() {
         alert('Ошибка выхода');
     }
 }
+
+// ========== УПРОЩЕННЫЙ HTML ДЛЯ РЕГИСТРАЦИИ ==========
+/*
+<!-- Модальное окно регистрации -->
+<div id="registerModal" class="modal">
+    <div class="modal-content">
+        <span class="close" onclick="hideRegistrationModal()">&times;</span>
+        <h2>Регистрация</h2>
+        <div class="form-group">
+            <input type="text" id="registerName" placeholder="Имя">
+            <div id="registerNameError" class="error-message"></div>
+        </div>
+        <div class="form-group">
+            <input type="email" id="registerEmail" placeholder="Email">
+            <div id="registerEmailError" class="error-message"></div>
+        </div>
+        <div class="form-group">
+            <input type="password" id="registerPassword" placeholder="Пароль">
+            <div id="registerPasswordError" class="error-message"></div>
+        </div>
+        <div class="form-group">
+            <input type="password" id="registerConfirmPassword" placeholder="Подтверждение пароля">
+            <div id="registerConfirmPasswordError" class="error-message"></div>
+        </div>
+        <button onclick="submitRegistration()" style="width: 100%; padding: 10px; background-color: #2196F3; color: white; border: none; border-radius: 4px; cursor: pointer;">
+            Зарегистрироваться
+        </button>
+    </div>
+</div>
+*/
