@@ -1,6 +1,10 @@
 // Конфигурация - ВАШ СЕРВЕР
-const SERVER = 'http://localhost:3415';
-const API_BASE = `${SERVER}/api`;
+// Сервер авторизации (от одного человека)
+const AUTH_SERVER = 'http://26.111.149.201:4000'; // или другой порт
+
+// Сервер основной логики (от другого сокомандника)
+const API_SERVER = 'http://26.1.150.131:3415';
+const API_BASE = `${API_SERVER}/api`;
 const SESSION_KEY = 'test_session';
 
 // Состояние
@@ -64,17 +68,51 @@ function capitalize(str) {
 // ========== АВТОРИЗАЦИЯ ==========
 async function startAuth(provider) {
     try {
-        if (provider === 'github') {
-            // GitHub OAuth
-            window.location.href = `${SERVER}/auth/github`;
-        } else if (provider === 'yandex') {
-            // Yandex OAuth
-            window.location.href = `${SERVER}/auth/yandex`;
+        console.log(`Начинаем авторизацию через ${provider} на сервере ${AUTH_SERVER}`);
+        
+        if (provider === 'github' || provider === 'yandex') {
+            // ВАЖНОЕ ИСПРАВЛЕНИЕ: Убрал лишнее поле provider из тела запроса
+            // Получаем токен сессии
+            const loginToken = state.token || 
+                (localStorage.getItem(SESSION_KEY) ? 
+                    JSON.parse(localStorage.getItem(SESSION_KEY)).token : null);
+            
+            console.log('Токен сессии:', loginToken ? 'есть' : 'нет');
+        
+            const response = await fetch(`${AUTH_SERVER}/auth/${provider}/start`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    provider: provider,
+                    loginToken:"test"
+                })
+            });
+            
+            console.log('Статус ответа:', response.status);
+            
+            if (response.ok) {
+                const data = await response.json();
+                console.log('Ответ сервера:', data);
+                
+                if (data.url) {
+                    window.location.href = data.url;
+                } else {
+                    alert('Сервер не вернул URL для редиректа');
+                }
+            } else {
+                const errorText = await response.text();
+                console.error('Ошибка сервера:', response.status, errorText);
+                throw new Error(`HTTP ${response.status}: ${errorText}`);
+            }
+            
         } else if (provider === 'code') {
             showCodeModal();
         }
     } catch (error) {
-        alert('Ошибка авторизации');
+        console.error('Полная ошибка авторизации:', error);
+        alert(`Ошибка авторизации: ${error.message}`);
     }
 }
 
