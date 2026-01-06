@@ -2,8 +2,7 @@ const axios = require('axios');
 
 const YANDEX_CLIENT_ID = process.env.YANDEX_CLIENT_ID;
 const YANDEX_CLIENT_SECRET = process.env.YANDEX_CLIENT_SECRET;
-const YANDEX_REDIRECT_URI =
-  process.env.YANDEX_REDIRECT_URI || 'http://localhost:4000/auth/yandex/callback';
+const YANDEX_REDIRECT_URI = process.env.YANDEX_REDIRECT_URI;
 
 function getYandexAuthUrl(loginToken) {
   const params = new URLSearchParams({
