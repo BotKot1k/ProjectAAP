@@ -27,13 +27,6 @@ async function init() {
     await handleTokensFromURL();
     initMessageListener();
     checkSession();
-    setupEventListeners();
-}
-
-function setupEventListeners() {
-    document.getElementById('authCode')?.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') submitCode();
-    });
 }
 
 // Обработка токенов из URL
@@ -188,16 +181,10 @@ function initMessageListener() {
 // Обновление состояния интерфейса
 function updateState(newStatus) {
     state.status = newStatus;
-    const userStatusEl = document.getElementById('userStatus');
-    if (userStatusEl) {
-        userStatusEl.textContent = `Статус: ${newStatus === 'unknown' ? 'Неизвестный' : newStatus === 'anonymous' ? 'Анонимный' : 'Авторизованный'}`;
-    }
+    document.getElementById('userStatus').textContent = `Статус: ${newStatus === 'unknown' ? 'Неизвестный' : newStatus === 'anonymous' ? 'Анонимный' : 'Авторизованный'}`;
     
     document.querySelectorAll('.state').forEach(el => el.classList.remove('active'));
-    const stateEl = document.getElementById(`state${capitalize(newStatus)}`);
-    if (stateEl) {
-        stateEl.classList.add('active');
-    }
+    document.getElementById(`state${capitalize(newStatus)}`).classList.add('active');
     
     updateAuthButtons(newStatus);
 }
@@ -389,7 +376,7 @@ async function loadUserData() {
         }
     } catch (error) {
         console.error('Ошибка загрузки данных пользователя:', error);
-        // Даже если не удалось загрузить из логического модуля - пользователь все равно авторизован
+
     }
 }
 
@@ -412,7 +399,6 @@ async function startAuth(provider) {
 
 async function openOAuthPopup(provider) {
     try {
-        // Генерируем случайный loginToken для безопасности
         const loginToken = generateRandomToken();
         
         // Сохраняем его локально для проверки после возврата
@@ -449,7 +435,7 @@ async function openOAuthPopup(provider) {
 
 function generateRandomToken() {
     return Array.from(crypto.getRandomValues(new Uint8Array(32)))
-        .map(b => b.toString(16).padStart(2, '0'))
+        .map(b => b.toString(16).padStart(2, '0')) // преобразования всех символов в 16 систему
         .join('');
 }
 
@@ -469,33 +455,6 @@ function openPopupWindow(url, provider) {
         alert('Пожалуйста, разрешите всплывающие окна для этого сайта');
         return;
     }
-    
-    // Слушаем запросы loginToken от popup
-    const tokenRequestListener = (event) => {
-        if (event.origin !== window.location.origin) return;
-        
-        if (event.data.type === 'oauth_request_login_token') {
-            const loginToken = sessionStorage.getItem('oauth_login_token');
-            if (loginToken && popup && !popup.closed) {
-                popup.postMessage({
-                    type: 'oauth_login_token',
-                    loginToken: loginToken
-                }, window.location.origin);
-            }
-        } else if (event.data.type === 'oauth_clear_login_token') {
-            sessionStorage.removeItem('oauth_login_token');
-        }
-    };
-    
-    window.addEventListener('message', tokenRequestListener);
-    
-    // Удаляем listener когда popup закрывается
-    const checkClosed = setInterval(() => {
-        if (popup.closed) {
-            window.removeEventListener('message', tokenRequestListener);
-            clearInterval(checkClosed);
-        }
-    }, 500);
     
     // Переходим в состояние ожидания
     state.status = 'anonymous';
@@ -903,7 +862,6 @@ async function loadProfile() {
                 <p>Имя: ${user.name || 'Не указано'}</p>
                 <p>Email: ${user.email || 'Не указан'}</p>
                 <p>ID: ${user.id}</p>
-                <button onclick="editProfile()">Редактировать</button>
             </div>
         `;
     } catch (error) {
@@ -911,26 +869,11 @@ async function loadProfile() {
     }
 }
 
-function editProfile() {
-    const container = document.getElementById('profileContent');
-    if (!container) return;
-    
-    container.innerHTML = `
-        <div class="card">
-            <h3>Редактирование профиля</h3>
-            <input type="text" id="editName" placeholder="Имя">
-            <input type="email" id="editEmail" placeholder="Email">
-            <button onclick="saveProfile()">Сохранить</button>
-            <button onclick="loadProfile()">Отмена</button>
-        </div>
-    `;
-}
-
 async function saveProfile() {
     const name = document.getElementById('editName').value;
     const email = document.getElementById('editEmail').value;
     
-    try {
+    try {ё
         await updateUser(state.userId, {name, email});
         alert('Профиль обновлен');
         loadProfile();
@@ -938,64 +881,7 @@ async function saveProfile() {
         alert('Ошибка обновления профиля');
     }
 }
-
-// ========== АДМИН-ПАНЕЛЬ ==========
-
-function loadAdminPanel() {
-    const container = document.getElementById('adminContent');
-    if (!container) return;
-    
-    container.innerHTML = '<div class="card">Выберите действие</div>';
-}
-
-function createCourseDialog() {
-    document.getElementById('courseName').value = '';
-    document.getElementById('courseDesc').value = '';
-    document.getElementById('createCourseModal').style.display = 'flex';
-}
-
-async function createCourse() {
-    const name = document.getElementById('courseName').value;
-    const description = document.getElementById('courseDesc').value;
-    
-    if (!name) {
-        alert('Введите название курса');
-        return;
-    }
-    
-    try {
-        await createCourse({name, description});
-        alert('Курс создан');
-        hideModal('createCourseModal');
-        loadAllCourses();
-    } catch (error) {
-        alert('Ошибка создания курса');
-    }
-}
-
-async function showAllUsers() {
-    const container = document.getElementById('adminContent');
-    if (!container) return;
-    
-    container.innerHTML = 'Загрузка...';
-    
-    try {
-        const users = await getAllUsers();
-        
-        container.innerHTML = `
-            <div class="card">
-                <h3>Все пользователи (${users.length})</h3>
-                ${users.map(user => `
-                    <div>
-                        <strong>${user.name || 'Без имени'}</strong> (${user.email || 'нет email'})
-                    </div>
-                `).join('')}
-            </div>
-        `;
-    } catch (error) {
-        container.innerHTML = '<div class="card">Ошибка загрузки</div>';
-    }
-}
+ёё
 
 // ========== ВСПОМОГАТЕЛЬНЫЕ ==========
 
