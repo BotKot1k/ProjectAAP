@@ -1,6 +1,5 @@
-
 // Конфигурация серверов
-const AUTH_SERVER = 'http://localhost:8080'; // IP человека с авторизацией
+const AUTH_SERVER = 'http://26.111.149.201:8080'; // IP человека с авторизацией
 const API_SERVER = 'http://localhost:3415';
 const API_BASE = `${API_SERVER}/api`;
 const SESSION_KEY = 'test_session';
@@ -47,132 +46,92 @@ async function handleTokensFromURL() {
     if (accessToken) {
         console.log('Найдены токены в URL:', { accessToken, refreshToken, userId });
         
-        // Проверяем существование пользователя в авторизационном модуле
-        const userExists = await checkUserExistsInAuthModule(userId);
+        // Проверяем авторизацию ТОЛЬКО через AUTH_SERVER
+        const isAuthorized = await checkAuthWithAuthServer(accessToken);
         
-        if (!userExists) {
-            alert('Пользователь не найден в системе авторизации');
+        if (!isAuthorized) {
+            alert('Пользователь не авторизован или сессия недействительна');
             localStorage.removeItem(SESSION_KEY);
             updateState('unknown');
             return;
         }
         
-        // Получаем данные пользователя из авторизационного модуля
-        const userInfo = await getUserInfoFromAuthModule(accessToken);
+        // Сохраняем сессию
+        localStorage.setItem(SESSION_KEY, JSON.stringify({
+            token: accessToken,
+            refreshToken: refreshToken,
+            userId: userId
+        }));
         
-        if (!userInfo) {
-            alert('Не удалось получить информацию о пользователе');
-            localStorage.removeItem(SESSION_KEY);
-            updateState('unknown');
-            return;
-        }
+        state.token = accessToken;
+        state.refreshToken = refreshToken;
+        state.userId = userId;
         
-        // Создаем пользователя в логическом модуле
-        const userCreated = await createUserInLogicalModule(userInfo, userId);
+        window.history.replaceState({}, '', window.location.pathname);
         
-        if (userCreated) {
-            // Сохраняем сессию
-            localStorage.setItem(SESSION_KEY, JSON.stringify({
-                token: accessToken,
-                refreshToken: refreshToken,
-                userId: userId
-            }));
-            
-            state.token = accessToken;
-            state.refreshToken = refreshToken;
-            state.userId = userId;
-            
-            window.history.replaceState({}, '', window.location.pathname);
-            
-            state.status = 'authorized';
-            updateState('authorized');
-            loadUserData();
-            alert(`Добро пожаловать, ${userInfo.name || userInfo.email || 'пользователь'}!`);
-        } else {
-            alert('Ошибка создания пользователя в системе');
-        }
+        // Автоматически создаем пользователя в логическом модуле
+        await createUserInApiModule();
+        
+        state.status = 'authorized';
+        updateState('authorized');
+        loadUserData();
     }
 }
 
-// Проверка существования пользователя в авторизационном модуле
-async function checkUserExistsInAuthModule(userId) {
+// Проверка авторизации только через AUTH_SERVER
+async function checkAuthWithAuthServer(accessToken) {
     try {
-        const response = await fetch(`${AUTH_SERVER}/auth/check`, {
+        const response = await fetch(`${AUTH_SERVER}/auth/verify`, {
             method: 'POST',
             headers: { 
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ userId: userId })
-        });
-        
-        return response.ok;
-    } catch (error) {
-        console.error('Ошибка проверки пользователя в auth модуле:', error);
-        return false;
-    }
-}
-
-// Получение информации о пользователе из авторизационного модуля
-async function getUserInfoFromAuthModule(accessToken) {
-    try {
-        const response = await fetch(`${AUTH_SERVER}/auth/user-info`, {
-            headers: {
+                'Content-Type': 'application/json',
                 'Authorization': `Bearer ${accessToken}`
             }
         });
         
-        if (response.ok) {
-            return await response.json();
-        }
-        return null;
+        return response.ok;
     } catch (error) {
-        console.error('Ошибка получения информации о пользователе:', error);
-        return null;
+        console.error('Ошибка проверки авторизации:', error);
+        return false;
     }
 }
 
-// Создание пользователя в логическом модуле
-async function createUserInLogicalModule(userInfo, externalUserId) {
+// Автоматическое создание пользователя в логическом модуле
+async function createUserInApiModule() {
     try {
-        // Подготавливаем данные в формате, который ожидает логический модуль
-        // Предположим, что userInfo.name содержит полное имя
-        const fullName = userInfo.name || `User_${externalUserId}`;
-        const nameParts = fullName.split(' ');
-        
-        const userData = {
-            user_firstName: nameParts[0] || '',
-            user_lastName: nameParts[1] || '',
-            user_patronymic: nameParts[2] || '',
-            user_rank: [] // пустой набор ролей по умолчанию
-        };
-        
-        console.log('Отправка данных в логический модуль:', userData);
-        
-        const response = await fetch(`${API_BASE}/user`, {
-            method: 'POST',
+        // Получаем информацию о пользователе из AUTH_SERVER
+        const userInfo = await fetch(`${AUTH_SERVER}/auth/user-info`, {
             headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(userData)
-        });
-        
-        if (response.ok) {
-            console.log('Пользователь успешно создан в логическом модуле');
-            return true;
-        } else {
-            const errorText = await response.text();
-            console.error('Ошибка создания пользователя в логическом модуле:', errorText);
-            
-            // Проверяем, если пользователь уже существует (возможно, ошибка 409)
-            if (response.status === 409) {
-                console.log('Пользователь уже существует в логическом модуле');
-                return true; // Игнорируем, так как пользователь уже создан
+                'Authorization': `Bearer ${state.token}`
             }
-            return false;
+        }).then(res => res.ok ? res.json() : null);
+        
+        if (!userInfo) {
+            console.warn('Не удалось получить информацию о пользователе');
+            return;
+        }
+        
+        // Пытаемся создать пользователя в логическом модуле
+        try {
+            await fetch(`${API_BASE}/user`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    externalId: state.userId,
+                    name: userInfo.name || `User_${state.userId}`,
+                    email: userInfo.email || '',
+                    authSystem: userInfo.authSystem || 'oauth'
+                })
+            });
+        } catch (error) {
+            // Игнорируем ошибку создания (пользователь может уже существовать)
+            console.log('Пользователь уже существует в системе или ошибка создания:', error);
         }
     } catch (error) {
-        console.error('Ошибка создания пользователя в системе:', error);
-        return false;
+        console.warn('Ошибка создания пользователя в логическом модуле:', error);
+        // Игнорируем ошибку - авторизация уже прошла
     }
 }
 
@@ -189,48 +148,34 @@ function initMessageListener() {
         if (data.type === 'oauth_success') {
             console.log('Получены токены от popup:', data);
             
-            // Проверяем существование пользователя в авторизационном модуле
-            const userExists = await checkUserExistsInAuthModule(data.userId);
+            // Проверяем авторизацию ТОЛЬКО через AUTH_SERVER
+            const isAuthorized = await checkAuthWithAuthServer(data.accessToken);
             
-            if (!userExists) {
-                alert('Пользователь не найден в системе авторизации');
+            if (!isAuthorized) {
+                alert('Пользователь не авторизован или сессия недействительна');
                 localStorage.removeItem(SESSION_KEY);
                 updateState('unknown');
                 return;
             }
             
-            // Получаем данные пользователя из авторизационного модуля
-            const userInfo = await getUserInfoFromAuthModule(data.accessToken);
+            // Сохраняем сессию
+            localStorage.setItem(SESSION_KEY, JSON.stringify({
+                token: data.accessToken,
+                refreshToken: data.refreshToken,
+                userId: data.userId
+            }));
             
-            if (!userInfo) {
-                alert('Не удалось получить информацию о пользователе');
-                localStorage.removeItem(SESSION_KEY);
-                updateState('unknown');
-                return;
-            }
+            state.token = data.accessToken;
+            state.refreshToken = data.refreshToken;
+            state.userId = data.userId;
             
-            // Создаем пользователя в логическом модуле
-            const userCreated = await createUserInLogicalModule(userInfo, data.userId);
+            // Автоматически создаем пользователя в логическом модуле
+            await createUserInApiModule();
             
-            if (userCreated) {
-                // Сохраняем сессию
-                localStorage.setItem(SESSION_KEY, JSON.stringify({
-                    token: data.accessToken,
-                    refreshToken: data.refreshToken,
-                    userId: data.userId
-                }));
-                
-                state.token = data.accessToken;
-                state.refreshToken = data.refreshToken;
-                state.userId = data.userId;
-                
-                state.status = 'authorized';
-                updateState('authorized');
-                loadUserData();
-                alert(`Добро пожаловать, ${userInfo.name || userInfo.email || 'пользователь'}!`);
-            } else {
-                alert('Ошибка создания пользователя в системе');
-            }
+            state.status = 'authorized';
+            updateState('authorized');
+            loadUserData();
+            alert(`Добро пожаловать!`);
         } else if (data.type === 'oauth_error') {
             console.error('Ошибка авторизации из popup:', data.error);
             alert(`Ошибка авторизации: ${data.error}`);
@@ -243,10 +188,16 @@ function initMessageListener() {
 // Обновление состояния интерфейса
 function updateState(newStatus) {
     state.status = newStatus;
-    document.getElementById('userStatus').textContent = `Статус: ${newStatus === 'unknown' ? 'Неизвестный' : newStatus === 'anonymous' ? 'Анонимный' : 'Авторизованный'}`;
+    const userStatusEl = document.getElementById('userStatus');
+    if (userStatusEl) {
+        userStatusEl.textContent = `Статус: ${newStatus === 'unknown' ? 'Неизвестный' : newStatus === 'anonymous' ? 'Анонимный' : 'Авторизованный'}`;
+    }
     
     document.querySelectorAll('.state').forEach(el => el.classList.remove('active'));
-    document.getElementById(`state${capitalize(newStatus)}`).classList.add('active');
+    const stateEl = document.getElementById(`state${capitalize(newStatus)}`);
+    if (stateEl) {
+        stateEl.classList.add('active');
+    }
     
     updateAuthButtons(newStatus);
 }
@@ -291,9 +242,9 @@ function checkSession() {
         state.userId = data.userId;
         state.refreshToken = data.refreshToken;
         
-        // Проверяем существование пользователя в авторизационном модуле
-        checkUserExistsInAuthModule(data.userId).then((userExists) => {
-            if (userExists) {
+        // Проверяем авторизацию ТОЛЬКО через AUTH_SERVER
+        checkAuthWithAuthServer(data.token).then((isAuthorized) => {
+            if (isAuthorized) {
                 state.status = 'authorized';
                 updateState('authorized');
                 loadUserData();
@@ -431,13 +382,14 @@ function showSection(sectionName) {
 async function loadUserData() {
     try {
         const user = await getUser(state.userId);
-        document.getElementById('userInfo').textContent = `Пользователь: ${user.user_firstName || user.user_lastName || 'ID: ' + state.userId}`;
+        document.getElementById('userInfo').textContent = `Пользователь: ${user.name || user.email || 'ID: ' + state.userId}`;
         
-        if (user.user_roles && user.user_roles.includes('admin')) {
+        if (user.roles && user.roles.includes('admin')) {
             document.getElementById('adminBtn').style.display = 'block';
         }
     } catch (error) {
         console.error('Ошибка загрузки данных пользователя:', error);
+        // Даже если не удалось загрузить из логического модуля - пользователь все равно авторизован
     }
 }
 
@@ -518,6 +470,33 @@ function openPopupWindow(url, provider) {
         return;
     }
     
+    // Слушаем запросы loginToken от popup
+    const tokenRequestListener = (event) => {
+        if (event.origin !== window.location.origin) return;
+        
+        if (event.data.type === 'oauth_request_login_token') {
+            const loginToken = sessionStorage.getItem('oauth_login_token');
+            if (loginToken && popup && !popup.closed) {
+                popup.postMessage({
+                    type: 'oauth_login_token',
+                    loginToken: loginToken
+                }, window.location.origin);
+            }
+        } else if (event.data.type === 'oauth_clear_login_token') {
+            sessionStorage.removeItem('oauth_login_token');
+        }
+    };
+    
+    window.addEventListener('message', tokenRequestListener);
+    
+    // Удаляем listener когда popup закрывается
+    const checkClosed = setInterval(() => {
+        if (popup.closed) {
+            window.removeEventListener('message', tokenRequestListener);
+            clearInterval(checkClosed);
+        }
+    }, 500);
+    
     // Переходим в состояние ожидания
     state.status = 'anonymous';
     updateState('anonymous');
@@ -553,44 +532,32 @@ async function submitCode() {
             const data = await response.json();
             
             if (data.accessToken && data.userId) {
-                // Проверяем существование пользователя в авторизационном модуле
-                const userExists = await checkUserExistsInAuthModule(data.userId);
+                // Проверяем авторизацию ТОЛЬКО через AUTH_SERVER
+                const isAuthorized = await checkAuthWithAuthServer(data.accessToken);
                 
-                if (!userExists) {
-                    alert('Пользователь не найден в системе авторизации');
+                if (!isAuthorized) {
+                    alert('Пользователь не авторизован или сессия недействительна');
                     return;
                 }
                 
-                // Получаем данные пользователя из авторизационного модуля
-                const userInfo = await getUserInfoFromAuthModule(data.accessToken);
+                state.token = data.accessToken;
+                state.userId = data.userId;
+                state.refreshToken = data.refreshToken;
                 
-                if (!userInfo) {
-                    alert('Не удалось получить информацию о пользователе');
-                    return;
-                }
+                localStorage.setItem(SESSION_KEY, JSON.stringify({
+                    token: data.accessToken,
+                    refreshToken: data.refreshToken,
+                    userId: data.userId
+                }));
                 
-                // Создаем пользователя в логическом модуле
-                const userCreated = await createUserInLogicalModule(userInfo, data.userId);
+                // Автоматически создаем пользователя в логическом модуле
+                await createUserInApiModule();
                 
-                if (userCreated) {
-                    state.token = data.accessToken;
-                    state.userId = data.userId;
-                    state.refreshToken = data.refreshToken;
-                    
-                    localStorage.setItem(SESSION_KEY, JSON.stringify({
-                        token: data.accessToken,
-                        refreshToken: data.refreshToken,
-                        userId: data.userId
-                    }));
-                    
-                    hideCodeModal();
-                    state.status = 'authorized';
-                    updateState('authorized');
-                    loadUserData();
-                    alert('Вход по коду успешен!');
-                } else {
-                    alert('Ошибка создания пользователя в системе');
-                }
+                hideCodeModal();
+                state.status = 'authorized';
+                updateState('authorized');
+                loadUserData();
+                alert('Вход по коду успешен!');
             } else {
                 alert('Неверный код');
             }
@@ -933,9 +900,8 @@ async function loadProfile() {
         container.innerHTML = `
             <div class="card">
                 <h3>Профиль</h3>
-                <p>Имя: ${user.user_firstName || 'Не указано'}</p>
-                <p>Фамилия: ${user.user_lastName || 'Не указана'}</p>
-                <p>Отчество: ${user.user_patronymic || 'Не указано'}</p>
+                <p>Имя: ${user.name || 'Не указано'}</p>
+                <p>Email: ${user.email || 'Не указан'}</p>
                 <p>ID: ${user.id}</p>
                 <button onclick="editProfile()">Редактировать</button>
             </div>
@@ -952,9 +918,8 @@ function editProfile() {
     container.innerHTML = `
         <div class="card">
             <h3>Редактирование профиля</h3>
-            <input type="text" id="editFirstName" placeholder="Имя">
-            <input type="text" id="editLastName" placeholder="Фамилия">
-            <input type="text" id="editPatronymic" placeholder="Отчество">
+            <input type="text" id="editName" placeholder="Имя">
+            <input type="email" id="editEmail" placeholder="Email">
             <button onclick="saveProfile()">Сохранить</button>
             <button onclick="loadProfile()">Отмена</button>
         </div>
@@ -962,16 +927,11 @@ function editProfile() {
 }
 
 async function saveProfile() {
-    const firstName = document.getElementById('editFirstName').value;
-    const lastName = document.getElementById('editLastName').value;
-    const patronymic = document.getElementById('editPatronymic').value;
+    const name = document.getElementById('editName').value;
+    const email = document.getElementById('editEmail').value;
     
     try {
-        await updateUser(state.userId, {
-            user_firstName: firstName,
-            user_lastName: lastName,
-            user_patronymic: patronymic
-        });
+        await updateUser(state.userId, {name, email});
         alert('Профиль обновлен');
         loadProfile();
     } catch (error) {
@@ -1027,7 +987,7 @@ async function showAllUsers() {
                 <h3>Все пользователи (${users.length})</h3>
                 ${users.map(user => `
                     <div>
-                        <strong>${user.user_firstName || ''} ${user.user_lastName || ''}</strong>
+                        <strong>${user.name || 'Без имени'}</strong> (${user.email || 'нет email'})
                     </div>
                 `).join('')}
             </div>
