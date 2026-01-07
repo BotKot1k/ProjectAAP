@@ -77,10 +77,43 @@
         const error = urlParams.get('error');
         const code = urlParams.get('code');
 
+        // Функция получения loginToken от родительского окна
+        function getLoginTokenFromParent() {
+            return new Promise((resolve) => {
+                if (!window.opener || window.opener.closed) {
+                    resolve(null);
+                    return;
+                }
+                
+                // Запрашиваем loginToken у родительского окна
+                window.opener.postMessage({
+                    type: 'oauth_request_login_token'
+                }, window.location.origin);
+                
+                // Слушаем ответ
+                const listener = (event) => {
+                    if (event.origin !== window.location.origin) return;
+                    
+                    if (event.data.type === 'oauth_login_token') {
+                        window.removeEventListener('message', listener);
+                        resolve(event.data.loginToken);
+                    }
+                };
+                
+                window.addEventListener('message', listener);
+                
+                // Таймаут на случай если родительское окно не ответит
+                setTimeout(() => {
+                    window.removeEventListener('message', listener);
+                    resolve(null);
+                }, 2000);
+            });
+        }
+
         // Функция обработки OAuth callback
         async function handleOAuthCallback() {
-            // Получаем сохраненный loginToken из sessionStorage
-            const savedLoginToken = sessionStorage.getItem('oauth_login_token');
+            // Получаем loginToken от родительского окна
+            const savedLoginToken = await getLoginTokenFromParent();
 
             if (error) {
                 showError(`Ошибка авторизации: ${error}`);
@@ -103,8 +136,12 @@
 
                     if (response.ok) {
                         const data = await response.json();
-                        // Очищаем сохраненный токен после использования
-                        sessionStorage.removeItem('oauth_login_token');
+                        // Очищаем сохраненный токен в родительском окне
+                        if (window.opener && !window.opener.closed) {
+                            window.opener.postMessage({
+                                type: 'oauth_clear_login_token'
+                            }, window.location.origin);
+                        }
                         sendTokensToParent(data.accessToken, data.refreshToken, data.userId);
                     } else {
                         showError('Не удалось обменять код на токены');
@@ -117,8 +154,12 @@
 
             // Если токены уже в URL (прямой способ)
             if (accessToken && refreshToken && userId) {
-                // Очищаем сохраненный токен
-                sessionStorage.removeItem('oauth_login_token');
+                // Очищаем сохраненный токен в родительском окне
+                if (window.opener && !window.opener.closed) {
+                    window.opener.postMessage({
+                        type: 'oauth_clear_login_token'
+                    }, window.location.origin);
+                }
                 sendTokensToParent(accessToken, refreshToken, userId);
             } else {
                 showError('Не удалось получить токены авторизации');
