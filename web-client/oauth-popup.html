@@ -1,33 +1,73 @@
 <!DOCTYPE html>
-<html>
+<html lang="ru">
 <head>
-    <title>Авторизация</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OAuth Авторизация</title>
     <style>
         body {
             font-family: Arial, sans-serif;
-            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        
+        .container {
             text-align: center;
+            background: rgba(255, 255, 255, 0.1);
+            padding: 40px;
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
+            max-width: 500px;
+            width: 90%;
         }
-        .loading {
-            font-size: 18px;
-            color: #333;
-            margin-top: 50px;
+        
+        .spinner {
+            border: 5px solid #f3f3f3;
+            border-top: 5px solid #667eea;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
         }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
         .success {
-            font-size: 18px;
-            color: green;
-            margin-top: 50px;
+            color: #4CAF50;
         }
+        
         .error {
-            font-size: 18px;
-            color: red;
-            margin-top: 50px;
+            color: #f44336;
+        }
+        
+        button {
+            margin-top: 20px;
+            padding: 10px 20px;
+            background: #f44336;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
         }
     </style>
 </head>
 <body>
-    <div id="status" class="loading">Идет авторизация...</div>
-    
+    <div class="container">
+        <div class="spinner" id="spinner"></div>
+        <h2 id="status">Обработка авторизации...</h2>
+        <p id="message">Пожалуйста, подождите</p>
+        <button onclick="window.close()" id="closeBtn" style="display:none;">Закрыть</button>
+    </div>
+
     <script>
         // Получаем параметры из URL
         const urlParams = new URLSearchParams(window.location.search);
@@ -35,42 +75,112 @@
         const refreshToken = urlParams.get('refreshToken');
         const userId = urlParams.get('userId');
         const error = urlParams.get('error');
-        
-        const statusEl = document.getElementById('status');
-        
-        if (error) {
-            // Если есть ошибка
-            statusEl.className = 'error';
-            statusEl.textContent = `Ошибка авторизации: ${error}`;
+        const code = urlParams.get('code');
+
+        // Функция обработки OAuth callback
+        async function handleOAuthCallback() {
+            // Получаем сохраненный loginToken из sessionStorage
+            const savedLoginToken = sessionStorage.getItem('oauth_login_token');
+
+            if (error) {
+                showError(`Ошибка авторизации: ${error}`);
+                return;
+            }
+
+            // Если есть код авторизации (GitHub/OAuth2 flow)
+            if (code) {
+                try {
+                    const response = await fetch('http://26.111.149.201:8080/auth/exchange', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            code: code,
+                            loginToken: savedLoginToken  // Передаем loginToken
+                        })
+                    });
+
+                    if (response.ok) {
+                        const data = await response.json();
+                        // Очищаем сохраненный токен после использования
+                        sessionStorage.removeItem('oauth_login_token');
+                        sendTokensToParent(data.accessToken, data.refreshToken, data.userId);
+                    } else {
+                        showError('Не удалось обменять код на токены');
+                    }
+                } catch (err) {
+                    showError('Ошибка сети: ' + err.message);
+                }
+                return;
+            }
+
+            // Если токены уже в URL (прямой способ)
+            if (accessToken && refreshToken && userId) {
+                // Очищаем сохраненный токен
+                sessionStorage.removeItem('oauth_login_token');
+                sendTokensToParent(accessToken, refreshToken, userId);
+            } else {
+                showError('Не удалось получить токены авторизации');
+            }
+        }
+
+        // Отправка токенов в родительское окно
+        function sendTokensToParent(accessToken, refreshToken, userId) {
+            showSuccess('Авторизация успешна!');
             
-            if (window.opener) {
+            if (window.opener && !window.opener.closed) {
                 window.opener.postMessage({
-                    type: 'oauth_error',
-                    error: error
+                    type: 'oauth_success',
+                    accessToken: accessToken,
+                    refreshToken: refreshToken,
+                    userId: userId
                 }, window.location.origin);
             }
-            setTimeout(() => window.close(), 3000);
-        } else if (accessToken && window.opener) {
-            // Успешная авторизация
-            statusEl.className = 'success';
-            statusEl.textContent = 'Авторизация успешна! Закрываю окно...';
             
-            // Передаем токены в основное окно
-            window.opener.postMessage({
-                type: 'oauth_success',
-                accessToken: accessToken,
-                refreshToken: refreshToken,
-                userId: userId
-            }, window.location.origin);
-            
-            // Закрываем popup
-            setTimeout(() => window.close(), 1000);
-        } else {
-            // Если что-то пошло не так
-            statusEl.className = 'error';
-            statusEl.textContent = 'Ошибка: не удалось получить токены авторизации';
-            setTimeout(() => window.close(), 3000);
+            // Автоматически закрываем через 2 секунды
+            setTimeout(() => {
+                window.close();
+            }, 2000);
         }
+
+        // Показать успешное сообщение
+        function showSuccess(message) {
+            document.getElementById('spinner').style.display = 'none';
+            document.getElementById('status').textContent = 'Успешно!';
+            document.getElementById('status').className = 'success';
+            document.getElementById('message').textContent = message;
+            document.getElementById('closeBtn').style.display = 'block';
+        }
+
+        // Показать сообщение об ошибке
+        function showError(message) {
+            document.getElementById('spinner').style.display = 'none';
+            document.getElementById('status').textContent = 'Ошибка';
+            document.getElementById('status').className = 'error';
+            document.getElementById('message').textContent = message;
+            document.getElementById('closeBtn').style.display = 'block';
+            
+            // Отправляем ошибку в родительское окно
+            if (window.opener && !window.opener.closed) {
+                window.opener.postMessage({
+                    type: 'oauth_error',
+                    error: message
+                }, window.location.origin);
+            }
+        }
+
+        // Запускаем обработку при загрузке
+        document.addEventListener('DOMContentLoaded', handleOAuthCallback);
+
+        // Обработка закрытия окна
+        window.addEventListener('beforeunload', () => {
+            if (window.opener && !window.opener.closed) {
+                window.opener.postMessage({
+                    type: 'oauth_window_closed'
+                }, window.location.origin);
+            }
+        });
     </script>
 </body>
 </html>
