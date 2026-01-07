@@ -71,7 +71,7 @@ async function handleTokensFromURL() {
     }
 }
 
-// Проверка авторизации только через AUTH_SERVER
+// Проверяю токен в базе 
 async function checkAuthWithAuthServer(accessToken) {
     try {
         const response = await fetch(`${AUTH_SERVER}/auth/verify`, {
@@ -119,12 +119,11 @@ async function createUserInApiModule() {
                 })
             });
         } catch (error) {
-            // Игнорируем ошибку создания (пользователь может уже существовать)
+        
             console.log('Пользователь уже существует в системе или ошибка создания:', error);
         }
     } catch (error) {
         console.warn('Ошибка создания пользователя в логическом модуле:', error);
-        // Игнорируем ошибку - авторизация уже прошла
     }
 }
 
@@ -178,7 +177,7 @@ function initMessageListener() {
 
 // ========== АВТОРИЗАЦИЯ ==========
 
-// Обновление состояния интерфейса
+// обновляю статус
 function updateState(newStatus) {
     state.status = newStatus;
     document.getElementById('userStatus').textContent = `Статус: ${newStatus === 'unknown' ? 'Неизвестный' : newStatus === 'anonymous' ? 'Анонимный' : 'Авторизованный'}`;
@@ -491,7 +490,7 @@ async function submitCode() {
             const data = await response.json();
             
             if (data.accessToken && data.userId) {
-                // Проверяем авторизацию ТОЛЬКО через AUTH_SERVER
+                // Проверяем токен
                 const isAuthorized = await checkAuthWithAuthServer(data.accessToken);
                 
                 if (!isAuthorized) {
@@ -509,7 +508,7 @@ async function submitCode() {
                     userId: data.userId
                 }));
                 
-                // Автоматически создаем пользователя в логическом модуле
+                //создаем пользователя в логическом модуле
                 await createUserInApiModule();
                 
                 hideCodeModal();
@@ -679,17 +678,19 @@ async function startTest(courseId, testId) {
         alert('Ошибка загрузки теста');
     }
 }
-
+// Загрузка текущего вопроса теста
 function loadQuestion() {
     const testContent = document.getElementById('testContent');
     if (!testContent) return;
-    
+
+    // Если вопросы закончились, завершаем тест
     if (state.currentQuestion >= state.questions.length) {
         finishTest();
         return;
     }
     
     const question = state.questions[state.currentQuestion];
+    // Вопрос 1/10
     document.getElementById('questionCounter').textContent = 
         `Вопрос ${state.currentQuestion + 1}/${state.questions.length}`;
     
@@ -754,8 +755,8 @@ async function finishTest() {
 
 async function showTestResults() {
     try {
-        let correct = 0;
-        let total = state.questions.length;
+        let correct = 0; // Счетчик правильных ответов
+        let total = state.questions.length; // Общее количество вопросов
         
         state.questions.forEach(question => {
             if (state.answers[question.id] === question.correctAnswer) {
@@ -780,7 +781,7 @@ async function showTestResults() {
         alert('Ошибка загрузки результатов');
     }
 }
-
+// Просмотр результатов конкретного теста
 async function viewTestResults(courseId, testId) {
     state.currentCourse = courseId;
     state.currentTest = testId;
