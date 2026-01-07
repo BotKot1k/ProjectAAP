@@ -5,17 +5,28 @@ const mongoose = require('mongoose');
 const app = express();
 app.use(express.json());
 
+const cookieParser = require('cookie-parser');
+
+app.use(cookieParser());
+
+app.use('/auth', require('./routes/authRefresh'));
+app.use('/auth', require('./routes/authCheck'));
+
+
 // === Настройка CORS ===
 // Укажи IP фронтенда (где запускается твой веб-клиент)
 // Можно с портом, если фронтенд на другом порту
-const FRONTEND_URL = 'http://26.104.217.228:5500';
+
 
 app.use((req, res, next) => {
-    res.header('Access-Control-Allow-Origin', FRONTEND_URL);
+    res.header('Access-Control-Allow-Origin', '*');
     res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
     res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-    res.header('Access-Control-Allow-Credentials', 'true'); // если используете cookie
-    if (req.method === 'OPTIONS') return res.sendStatus(200);
+    
+    if (req.method === 'OPTIONS') {
+        return res.sendStatus(200);
+    }
+    
     next();
 });
 
@@ -51,7 +62,6 @@ mongoose.connect(process.env.MONGO_URI)
     // Слушаем все интерфейсы 0.0.0.0 → доступ извне
     app.listen(PORT, '0.0.0.0', () => {
         console.log(`Server running on port ${PORT}`);
-        console.log(`Frontend CORS allowed from: ${FRONTEND_URL}`);
     });
   })
   .catch(err => console.error('MongoDB connection error:', err.message));

@@ -7,13 +7,13 @@ const { resolveLoginToken } = require('../services/loginToken.service');
 const User = require('../models/User');
 const { getPermissionsByRoles } = require('../services/permissions.service');
 
+const FRONTEND_URL = process.env.FRONTEND_URL || 'http://127.0.0.1:5500/ProjectAAP/web-client/main.html';
 const JWT_SECRET = process.env.JWT_SECRET;
 
+// Генерация кода
 router.post('/start', (req, res) => {
   const { loginToken } = req.body;
-  if (!loginToken) {
-    return res.status(400).json({ error: 'loginToken required' });
-  }
+  if (!loginToken) return res.status(400).json({ error: 'loginToken required' });
 
   const code = generateCode(loginToken);
 
@@ -25,11 +25,10 @@ router.post('/start', (req, res) => {
   res.json({ code });
 });
 
+// Проверка кода
 router.post('/verify', async (req, res) => {
   const { code, refreshToken } = req.body;
-  if (!code || !refreshToken) {
-    return res.status(400).json({ error: 'code and refreshToken required' });
-  }
+  if (!code || !refreshToken) return res.status(400).json({ error: 'code and refreshToken required' });
 
   try {
     const { loginToken, email } = verifyCode(code, refreshToken, JWT_SECRET);
@@ -45,9 +44,7 @@ router.post('/verify', async (req, res) => {
       });
     }
 
-    if (user.blocked) {
-      return res.sendStatus(418);
-    }
+    if (user.blocked) return res.sendStatus(418);
 
     const permissions = getPermissionsByRoles(user.roles);
 
@@ -62,9 +59,7 @@ router.post('/verify', async (req, res) => {
       { expiresIn: '15m' }
     );
 
-    const newRefreshToken = await createRefreshToken(user, {
-      expiresIn: '7d'
-    });
+    const newRefreshToken = await createRefreshToken(user, { expiresIn: '7d' });
 
     resolveLoginToken(loginToken, {
       accessToken,
@@ -77,7 +72,23 @@ router.post('/verify', async (req, res) => {
       }
     });
 
-    res.json({ ok: true });
+    // Страница "Авторизация успешна" с редиректом
+    res.send(`
+      <html>
+        <body>
+          <h2>Авторизация успешна</h2>
+          <p>Вы будете перенаправлены на основной сайт...</p>
+          <script>
+            const accessToken = "${accessToken}";
+            const refreshToken = "${newRefreshToken}";
+            setTimeout(() => {
+              window.location.href = "${FRONTEND_URL}";
+            }, 2000);
+          </script>
+        </body>
+      </html>
+    `);
+
   } catch (err) {
     console.error('Code verify error:', err.message);
     res.status(400).json({ error: err.message });
