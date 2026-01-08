@@ -1,12 +1,10 @@
-# Этап сборки
-FROM golang:1.22 AS builder
-WORKDIR /app
-COPY . .
-RUN go build -o server main.go
+FROM golang:1.25-alpine
 
-# Этап запуска
-FROM debian:bookworm-slim
 WORKDIR /app
-COPY --from=builder /app/server .
-EXPOSE 3415
-CMD ["./server"]
+
+COPY . .
+
+RUN go mod download
+
+# Просто запускаем через go run
+CMD ["go", "run", "main.go"]
