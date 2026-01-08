@@ -13,18 +13,16 @@ const { createAccessToken, createRefreshToken } = require('../services/token.ser
 const { getPermissionsByRoles } = require('../services/permissions.service');
 const User = require('../models/User');
 
-const FRONTEND_URL = process.env.FRONTEND_URL || 'http://127.0.0.1:5500/ProjectAAP/web-client/main.html';
-
-// Запуск авторизации
 router.post('/start', (req, res) => {
   const { loginToken } = req.body;
-  if (!loginToken) return res.status(400).json({ error: 'loginToken required' });
+  if (!loginToken) {
+    return res.status(400).json({ error: 'loginToken required' });
+  }
 
   createLoginToken(loginToken);
   res.json({ url: getYandexAuthUrl(loginToken) });
 });
 
-// Проверка статуса
 router.get('/status/:token', (req, res) => {
   const record = getLoginToken(req.params.token);
   if (!record) return res.status(404).json({ error: 'Not found' });
@@ -35,7 +33,6 @@ router.get('/status/:token', (req, res) => {
   res.json(record.result);
 });
 
-// Callback от Яндекса
 router.get('/callback', async (req, res) => {
   const { code, state, error, error_description } = req.query;
 
@@ -49,17 +46,14 @@ router.get('/callback', async (req, res) => {
     `);
   }
 
-  if (!code || !state) return res.status(400).send('Invalid callback data');
+  if (!code || !state) {
+    return res.status(400).send('Invalid callback data');
+  }
 
   try {
     const yandexUser = await getYandexUser(code);
 
-    let user = await User.findOne({
-      $or: [
-        { yandexId: yandexUser.id },
-        { email: yandexUser.email }
-      ]
-    });
+    let user = await User.findOne({ yandexId: yandexUser.id });
 
     if (!user) {
       user = await User.create({
@@ -69,9 +63,6 @@ router.get('/callback', async (req, res) => {
         avatar: yandexUser.avatar,
         roles: ['student']
       });
-    } else if (!user.yandexId) {
-      user.yandexId = yandexUser.id;
-      await user.save();
     }
 
     if (user.blocked) {
@@ -92,7 +83,9 @@ router.get('/callback', async (req, res) => {
       { expiresIn: '15m' }
     );
 
-    const refreshToken = await createRefreshToken(user, { expiresIn: '7d' });
+    const refreshToken = await createRefreshToken(user, {
+      expiresIn: '7d'
+    });
 
     resolveLoginToken(state, {
       accessToken,
@@ -105,23 +98,12 @@ router.get('/callback', async (req, res) => {
       }
     });
 
-    // Страница "Авторизация успешна" с редиректом
     res.send(`
-      <html>
-        <body>
-          <h2>Авторизация успешна</h2>
-          <p>Вы будете перенаправлены на основной сайт...</p>
-          <script>
-            const accessToken = "${accessToken}";
-            const refreshToken = "${refreshToken}";
-            setTimeout(() => {
-              window.location.href = "${FRONTEND_URL}";
-            }, 2000);
-          </script>
-        </body>
-      </html>
+      <html><body>
+        <h2>Авторизация успешна</h2>
+        <p>Вы можете вернуться в приложение</p>
+      </body></html>
     `);
-
   } catch (err) {
     console.error('Yandex callback error:', err);
     rejectLoginToken(state);
