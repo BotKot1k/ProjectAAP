@@ -3,7 +3,6 @@ const AUTH_SERVER = 'http://26.111.149.201:8080'; // IP человека с ав
 const API_SERVER = 'http://localhost:3415';
 const API_BASE = `${API_SERVER}/api`;
 const SESSION_KEY = 'test_session';
-const OAUTH_STATE_KEY = 'oauth_state';
 
 // Состояние приложения
 let state = {
